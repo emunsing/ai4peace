@@ -1,0 +1,16 @@
+[tool.poetry]
+name = "ai4peace"
+version = "0.1.0"
+description = ""
+authors = ["emunsing <eric.munsing@gmail.com>"]
+readme = "README.md"
+
+[tool.poetry.dependencies]
+python = "^3.12"
+autogen-agentchat = "*"
+autogen-ext = {extras = ["openai"], version = "*"}
+gdm-concordia = "*"
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"

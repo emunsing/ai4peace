@@ -45,6 +45,8 @@ pip install autogen-agentchat autogen-ext[openai]
 
 ### Run the Drone Arms Control Simulation
 
+#### Basic Usage (OpenAI)
+
 ```bash
 # Set your OpenAI API key
 export OPENAI_API_KEY="your-api-key-here"
@@ -56,6 +58,29 @@ export MAX_ROUNDS=3
 # Run the example simulation
 python example_drone_simulation.py
 ```
+
+#### Using Alternative Providers (e.g., Novita AI, Together AI)
+
+The script supports custom API endpoints for OpenAI-compatible providers:
+
+```bash
+# Example: Using Novita AI
+export OPENAI_API_KEY="your-novita-api-key"
+export OPENAI_API_BASE="https://api.novita.ai/v3"
+export OPENAI_MODEL="novita/Novita/Llama-3.1-405B-Instruct-Turbo"
+export MAX_ROUNDS=3
+
+python example_drone_simulation.py
+```
+
+#### Configuration Options
+
+- `OPENAI_API_KEY` (required): Your API key
+- `OPENAI_MODEL` (optional): Model name (default: "gpt-4o-mini")
+- `OPENAI_API_BASE` (optional): Custom API base URL for alternative providers
+- `OPENAI_REQUEST_TIMEOUT` (optional): Request timeout in seconds (default: 300)
+- `OPENAI_MAX_RETRIES` (optional): Maximum retry attempts (default: 3)
+- `MAX_ROUNDS` (optional): Number of simulation rounds (default: 3)
 
 ### Using as a Package
 

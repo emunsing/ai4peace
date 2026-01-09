@@ -4,20 +4,9 @@ from typing import Dict, List, Optional, Any
 from datetime import datetime
 import json
 import asyncio
+import re
 
-try:
-    from autogen_agentchat.agents import AssistantAgent
-    from autogen_agentchat.ui import Console
-    from autogen_agentchat.teams import RoundRobinGroupChat
-    from autogen_agentchat.workflows import run_workflow
-    from autogen_ext.models.openai import OpenAIChatCompletionClient
-except ImportError:
-    # Fallback for development without autogen installed
-    AssistantAgent = None
-    Console = None
-    RoundRobinGroupChat = None
-    run_workflow = None
-    OpenAIChatCompletionClient = None
+from autogen_agentchat.agents import AssistantAgent
 
 from .game_state import GameState, CharacterState
 from .actions import Action, ActionType, ResearchProjectAction, MessageAction, EspionageAction
@@ -51,13 +40,11 @@ class GameAgent:
         
         # Build system message
         self.system_message = self._build_system_message(system_message_template)
-        
-        # Create Autogen agent
-        if AssistantAgent is None:
-            raise ImportError("autogen-agentchat not installed. Install with: pip install autogen-agentchat")
-        
+                
+        pythonic_name = re.sub('\W|^(?=\d)','_', self.character_name)
+
         self.agent = AssistantAgent(
-            name=character_name,
+            name=pythonic_name,
             model_client=llm_client,
             system_message=self.system_message,
             tools=[],  # Can add tools here for RAG memory
@@ -225,11 +212,14 @@ You can take multiple actions per round. Consider:
     async def _get_llm_response(self, prompt: str) -> str:
         """Get response from LLM via Autogen."""
         try:
-            # Use the model client directly
-            # Autogen's OpenAIChatCompletionClient follows standard OpenAI patterns
+            # Use autogen-ext's message types instead of plain dictionaries
+            # Autogen-ext expects typed message objects, not dicts
+            if SystemMessage is None or HumanMessage is None:
+                raise ImportError("autogen-agentchat not installed. Install with: pip install autogen-agentchat")
+            
             messages = [
-                {"role": "system", "content": self.system_message},
-                {"role": "user", "content": prompt}
+                SystemMessage(content=self.system_message),
+                HumanMessage(content=prompt)
             ]
             
             # Check if client has async create method
@@ -266,10 +256,18 @@ You can take multiple actions per round. Consider:
             if isinstance(response, str):
                 return response
             elif hasattr(response, 'choices') and len(response.choices) > 0:
-                # Standard OpenAI format
-                return response.choices[0].message.content
+                # Standard OpenAI format - extract from choice
+                choice = response.choices[0]
+                if hasattr(choice, 'message') and hasattr(choice.message, 'content'):
+                    return choice.message.content
+                elif hasattr(choice, 'content'):
+                    return choice.content
             elif hasattr(response, 'content'):
+                # Direct content attribute
                 return response.content
+            elif hasattr(response, 'text'):
+                # Some response formats use 'text'
+                return response.text
             else:
                 # Fallback: try to stringify
                 return str(response)

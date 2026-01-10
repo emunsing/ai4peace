@@ -7,6 +7,7 @@ import asyncio
 import re
 
 from autogen_agentchat.agents import AssistantAgent
+from autogen_agentchat.messages import BaseTextChatMessage
 
 from .game_state import GameState, CharacterState
 from .actions import Action, ActionType, ResearchProjectAction, MessageAction, EspionageAction
@@ -41,10 +42,10 @@ class GameAgent:
         # Build system message
         self.system_message = self._build_system_message(system_message_template)
                 
-        pythonic_name = re.sub('\W|^(?=\d)','_', self.character_name)
+        self.clean_name = re.sub("\W|^(?=\d)","_", self.character_name)
 
         self.agent = AssistantAgent(
-            name=pythonic_name,
+            name=self.clean_name,
             model_client=llm_client,
             system_message=self.system_message,
             tools=[],  # Can add tools here for RAG memory
@@ -213,64 +214,15 @@ You can take multiple actions per round. Consider:
         """Get response from LLM via Autogen."""
         try:
             # Use autogen-ext's message types instead of plain dictionaries
-            # Autogen-ext expects typed message objects, not dicts
-            if SystemMessage is None or HumanMessage is None:
-                raise ImportError("autogen-agentchat not installed. Install with: pip install autogen-agentchat")
-            
+            # Autogen-ext expects typed message objects that inherit from BaseChatMessage
+            # BaseTextChatMessage is the appropriate class for text messages
             messages = [
-                SystemMessage(content=self.system_message),
-                HumanMessage(content=prompt)
+                BaseTextChatMessage(source=self.clean_name, content=self.system_message),
+                BaseTextChatMessage(source=self.clean_name, content=prompt)
             ]
-            
-            # Check if client has async create method
-            if hasattr(self.llm_client, 'create'):
-                create_method = self.llm_client.create
-                if asyncio.iscoroutinefunction(create_method):
-                    response = await create_method(messages=messages)
-                else:
-                    # Run sync method in executor
-                    loop = asyncio.get_event_loop()
-                    response = await loop.run_in_executor(
-                        None,
-                        create_method,
-                        messages
-                    )
-            else:
-                # Try alternative method name
-                if hasattr(self.llm_client, 'create_chat_completion'):
-                    create_method = self.llm_client.create_chat_completion
-                    if asyncio.iscoroutinefunction(create_method):
-                        response = await create_method(messages=messages)
-                    else:
-                        loop = asyncio.get_event_loop()
-                        response = await loop.run_in_executor(
-                            None,
-                            create_method,
-                            messages
-                        )
-                else:
-                    raise AttributeError("LLM client has no create method")
-            
-            # Extract content from response
-            # Handle various response formats
-            if isinstance(response, str):
-                return response
-            elif hasattr(response, 'choices') and len(response.choices) > 0:
-                # Standard OpenAI format - extract from choice
-                choice = response.choices[0]
-                if hasattr(choice, 'message') and hasattr(choice.message, 'content'):
-                    return choice.message.content
-                elif hasattr(choice, 'content'):
-                    return choice.content
-            elif hasattr(response, 'content'):
-                # Direct content attribute
-                return response.content
-            elif hasattr(response, 'text'):
-                # Some response formats use 'text'
-                return response.text
-            else:
-                # Fallback: try to stringify
-                return str(response)
+            response = await self.agent.run(task=messages)
+
+            return response.messages[-1].content
                 
         except Exception as e:
             # Fallback: return a basic structured response

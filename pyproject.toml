@@ -9,6 +9,7 @@ readme = "README.md"
 python = "^3.12"
 autogen-agentchat = "*"
 autogen-ext = {extras = ["openai"], version = "*"}
+click = "*"
 gdm-concordia = "*"
 
 # Concordia example requirements from https://raw.githubusercontent.com/google-deepmind/concordia/main/examples/requirements.in

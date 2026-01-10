@@ -5,6 +5,7 @@ from datetime import datetime
 import json
 import asyncio
 import re
+import logging
 
 from autogen_agentchat.agents import AssistantAgent
 from autogen_agentchat.messages import BaseTextChatMessage
@@ -12,6 +13,8 @@ from autogen_agentchat.messages import BaseTextChatMessage
 from .game_state import GameState, CharacterState
 from .actions import Action, ActionType, ResearchProjectAction, MessageAction, EspionageAction
 from .memory import MemoryStore
+
+logger = logging.getLogger(__name__)
 
 
 class GameAgent:
@@ -220,15 +223,27 @@ You can take multiple actions per round. Consider:
                 BaseTextChatMessage(source=self.clean_name, content=self.system_message),
                 BaseTextChatMessage(source=self.clean_name, content=prompt)
             ]
+            
+            # Debug logging for messages
+            if logger.isEnabledFor(logging.DEBUG):
+                logger.debug(f"{self.character_name} - System message length: {len(self.system_message)} chars")
+                logger.debug(f"{self.character_name} - Prompt length: {len(prompt)} chars")
+                logger.debug(f"{self.character_name} - Full prompt:\n{prompt}")
+            
             response = await self.agent.run(task=messages)
+            
+            response_content = response.messages[-1].content if response.messages else ""
+            
+            # Debug logging for response
+            if logger.isEnabledFor(logging.DEBUG):
+                logger.debug(f"{self.character_name} - Response length: {len(response_content)} chars")
+                logger.debug(f"{self.character_name} - Full response:\n{response_content}")
 
-            return response.messages[-1].content
+            return response_content
                 
         except Exception as e:
             # Fallback: return a basic structured response
-            print(f"Warning: LLM call failed: {e}")
-            import traceback
-            traceback.print_exc()
+            logger.error(f"{self.character_name} - LLM call failed: {e}", exc_info=True)
             return json.dumps({
                 "actions": [],
                 "messages": []

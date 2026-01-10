@@ -3,11 +3,15 @@
 from typing import Dict, List, Optional, Any
 from datetime import datetime
 import asyncio
+import logging
 
 from .game_state import GameState
 from .agent import GameAgent
 from .gamemaster import GameMaster
 from .actions import Action
+from .utils import print_character_states
+
+logger = logging.getLogger(__name__)
 
 
 class Simulation:
@@ -43,13 +47,22 @@ class Simulation:
         Returns:
             Dictionary containing simulation results and history
         """
-        print(f"Starting simulation: {len(self.agents)} agents, {self.max_rounds} rounds")
-        print(f"Initial date: {self.game_state.current_date.strftime('%Y-%m-%d')}\n")
+        logger.info(f"Starting simulation: {len(self.agents)} agents, {self.max_rounds} rounds")
+        logger.info(f"Initial date: {self.game_state.current_date.strftime('%Y-%m-%d')}")
         
+                    # Print character states every round if log level is INFO or higher
+        if logger.isEnabledFor(logging.INFO):
+            print_character_states(
+                self.game_state,
+                title=f"Character States - Initial",
+                log_level=logging.INFO
+            )
+
+
         for round_num in range(1, self.max_rounds + 1):
-            print(f"\n{'='*60}")
-            print(f"ROUND {round_num} ({self.game_state.current_date.strftime('%Y-%m-%d')})")
-            print(f"{'='*60}\n")
+            logger.info(f"\n{'='*60}")
+            logger.info(f"ROUND {round_num} ({self.game_state.current_date.strftime('%Y-%m-%d')})")
+            logger.info(f"{'='*60}")
             
             # Get action summary from previous round (or initial state)
             action_summary = self._get_action_summary()
@@ -57,7 +70,7 @@ class Simulation:
             # Each agent takes their turn
             actions: List[Action] = []
             for character_name, agent in self.agents.items():
-                print(f"\n--- {character_name} is deciding actions ---")
+                logger.debug(f"{character_name} is deciding actions")
                 
                 # Get private updates for this character
                 private_updates = self._get_private_updates(character_name)
@@ -70,9 +83,9 @@ class Simulation:
                         private_updates=private_updates,
                     )
                     actions.append(action)
-                    print(f"{character_name} submitted action: {action.action_type.value}")
+                    logger.info(f"{character_name} submitted action: {action.action_type.value}")
                 except Exception as e:
-                    print(f"Error getting action from {character_name}: {e}")
+                    logger.error(f"Error getting action from {character_name}: {e}", exc_info=True)
                     # Create a no-op action
                     from .actions import Action, ActionType
                     actions.append(Action(
@@ -82,7 +95,7 @@ class Simulation:
                     ))
             
             # Gamemaster processes all actions
-            print(f"\n--- GameMaster processing round ---")
+            logger.debug("GameMaster processing round")
             private_summaries = self.gamemaster.process_round(
                 game_state=self.game_state,
                 actions=actions,
@@ -99,12 +112,21 @@ class Simulation:
             self.history.append(round_history)
             
             # Display summary
-            print(f"\nRound {round_num} Summary:")
-            print(self.game_state.game_history[-1] if self.game_state.game_history else "No summary")
+            if self.game_state.game_history:
+                logger.info(f"\nRound {round_num} Summary:")
+                logger.info(self.game_state.game_history[-1])
+            
+            # Print character states every round if log level is INFO or higher
+            if logger.isEnabledFor(logging.INFO):
+                print_character_states(
+                    self.game_state,
+                    title=f"Character States - Round {round_num}",
+                    log_level=logging.INFO
+                )
         
-        print(f"\n{'='*60}")
-        print("SIMULATION COMPLETE")
-        print(f"{'='*60}\n")
+        logger.info(f"\n{'='*60}")
+        logger.info("SIMULATION COMPLETE")
+        logger.info(f"{'='*60}")
         
         return {
             "final_state": self.game_state,

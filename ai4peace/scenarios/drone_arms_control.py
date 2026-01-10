@@ -1,8 +1,9 @@
 """Drone arms control scenario implementation."""
 
 from datetime import datetime, timedelta
-from typing import Dict, List
+from typing import Dict, List, Optional
 
+from .base import Scenario
 from ..core.game_state import (
     GameState,
     CharacterState,
@@ -90,40 +91,91 @@ RESEARCH_TOPICS = [
 ]
 
 
-def create_game_state(start_date: datetime = None) -> GameState:
-    """Create initial game state for the drone arms control scenario."""
-    if start_date is None:
-        start_date = datetime(2024, 1, 1)
+class DroneArmsControlScenario(Scenario):
+    """Drone arms control scenario implementation."""
     
-    game_state = GameState(
-        current_date=start_date,
-        round_number=0,
-        characters={},
-    )
-    
-    # Create characters
-    characters = create_characters()
-    for char in characters:
-        game_state.add_character(char)
-    
-    return game_state
+    def create_game_state(self, start_date: Optional[datetime] = None) -> GameState:
+        """Create initial game state for the drone arms control scenario."""
+        if start_date is None:
+            start_date = datetime(2024, 1, 1)
+        
+        game_state = GameState(
+            current_date=start_date,
+            round_number=0,
+            characters={},
+        )
+        
+        # Create characters
+        characters = self.create_characters()
+        for char in characters:
+            game_state.add_character(char)
+        
+        return game_state
 
 
-def create_characters() -> List[CharacterState]:
-    """Create all characters for the drone arms control scenario."""
-    characters = []
-    
-    # Ukraine/EU/Western characters
-    characters.append(create_ukrainian_startup())
-    characters.append(create_anduril())
-    characters.append(create_us_government())
-    
-    # Russian/Iranian characters
-    characters.append(create_russian_government())
-    characters.append(create_iranian_manufacturer())
-    
-    return characters
+    def create_characters(self) -> List[CharacterState]:
+        """Create all characters for the drone arms control scenario."""
+        characters = []
+        
+        # Ukraine/EU/Western characters
+        characters.append(create_ukrainian_startup())
+        characters.append(create_anduril())
+        characters.append(create_us_government())
+        
+        # Russian/Iranian characters
+        characters.append(create_russian_government())
+        characters.append(create_iranian_manufacturer())
+        
+        return characters
 
+    def get_research_topics(self) -> List[Dict]:
+        """Get list of available research topics."""
+        return RESEARCH_TOPICS
+
+    def get_game_context(self) -> str:
+        """Get the shared game context description."""
+        return """# International Technology Policy Simulation: Arms Control on Autonomous Drones
+
+## Background
+
+This simulation models the development and potential regulation of autonomous drone technologies in the context of international conflict and arms control. The scenario is set against the backdrop of:
+
+- The ongoing Russia-Ukraine conflict
+- Potential future Western-Russian conflicts
+- Potential future US-China conflicts
+- Evolving international norms around autonomous weapons systems
+
+## Arms Control Proposal
+
+A proposed arms control framework aims to prevent the development of fully autonomous systems capable of indiscriminate targeting of civilians without human intervention. This would affect:
+
+- Systems that can autonomously select and engage targets
+- Systems operating beyond human oversight
+- Technologies that could enable autonomous targeting at scale
+
+## Current Situation
+
+- Ukraine is actively using drone technology in ongoing conflict
+- Western companies and governments are developing advanced autonomous systems
+- Russian and Iranian entities are developing and deploying their own drone capabilities
+- International discussions about regulation are ongoing but not yet binding
+
+## Game Mechanics
+
+- Each round represents approximately 3 months
+- Characters can take multiple actions per round
+- Research projects take time and resources to complete
+- Information asymmetry: each character has private information not fully visible to others
+- Characters can engage in diplomacy, espionage, and public campaigns
+
+## Victory Conditions
+
+This is an open-ended simulation. Success is measured by:
+- Achievement of stated objectives
+- Technological advancement
+- Resource accumulation
+- Influence on policy outcomes
+- Strategic positioning for future conflicts"""
 
 def create_ukrainian_startup() -> CharacterState:
     """Create Ukrainian drone startup character."""
@@ -339,53 +391,27 @@ def create_iranian_manufacturer() -> CharacterState:
     )
 
 
+# Convenience functions for backwards compatibility
+def create_game_state(start_date: datetime = None) -> GameState:
+    """Create game state using the scenario."""
+    scenario = DroneArmsControlScenario()
+    return scenario.create_game_state(start_date)
+
+
+def create_characters() -> List[CharacterState]:
+    """Create characters using the scenario."""
+    scenario = DroneArmsControlScenario()
+    return scenario.create_characters()
+
+
 def get_game_context() -> str:
-    """Get the shared game context description."""
-    return """# International Technology Policy Simulation: Arms Control on Autonomous Drones
-
-## Background
-
-This simulation models the development and potential regulation of autonomous drone technologies in the context of international conflict and arms control. The scenario is set against the backdrop of:
-
-- The ongoing Russia-Ukraine conflict
-- Potential future Western-Russian conflicts
-- Potential future US-China conflicts
-- Evolving international norms around autonomous weapons systems
-
-## Arms Control Proposal
-
-A proposed arms control framework aims to prevent the development of fully autonomous systems capable of indiscriminate targeting of civilians without human intervention. This would affect:
-
-- Systems that can autonomously select and engage targets
-- Systems operating beyond human oversight
-- Technologies that could enable autonomous targeting at scale
-
-## Current Situation
-
-- Ukraine is actively using drone technology in ongoing conflict
-- Western companies and governments are developing advanced autonomous systems
-- Russian and Iranian entities are developing and deploying their own drone capabilities
-- International discussions about regulation are ongoing but not yet binding
-
-## Game Mechanics
-
-- Each round represents approximately 3 months
-- Characters can take multiple actions per round
-- Research projects take time and resources to complete
-- Information asymmetry: each character has private information not fully visible to others
-- Characters can engage in diplomacy, espionage, and public campaigns
-
-## Victory Conditions
-
-This is an open-ended simulation. Success is measured by:
-- Achievement of stated objectives
-- Technological advancement
-- Resource accumulation
-- Influence on policy outcomes
-- Strategic positioning for future conflicts"""
+    """Get game context using the scenario."""
+    scenario = DroneArmsControlScenario()
+    return scenario.get_game_context()
 
 
 def get_research_topics() -> List[Dict]:
-    """Get list of available research topics."""
-    return RESEARCH_TOPICS
+    """Get research topics using the scenario."""
+    scenario = DroneArmsControlScenario()
+    return scenario.get_research_topics()
 

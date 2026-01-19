@@ -1,0 +1,243 @@
+------------------------------------------------------------
+Character States - Initial
+------------------------------------------------------------
+
+Ukrainian Drone Startup:
+  Budget: $2,000,000
+  Assets:
+    - Technical Capability: 15.0
+    - Capital: $500,000
+    - Human Resources: 25.0
+  Active Projects: 0
+
+Anduril Industries:
+  Budget: $100,000,000
+  Assets:
+    - Technical Capability: 85.0
+    - Capital: $50,000,000
+    - Human Resources: 500.0
+  Active Projects: 0
+
+US Government (DoD):
+  Budget: $2,000,000,000
+  Assets:
+    - Technical Capability: 95.0
+    - Capital: $1,000,000,000
+    - Human Resources: 10000.0
+  Active Projects: 0
+
+Russian Government (Ministry of Defense):
+  Budget: $1,500,000,000
+  Assets:
+    - Technical Capability: 70.0
+    - Capital: $800,000,000
+    - Human Resources: 8000.0
+  Active Projects: 0
+
+Iranian Drone Manufacturer:
+  Budget: $50,000,000
+  Assets:
+    - Technical Capability: 50.0
+    - Capital: $30,000,000
+    - Human Resources: 300.0
+  Active Projects: 0
+
+Round 1 Summary:
+2026-01-18 15:44:56,071 - ai4peace.core.simulation - INFO - Round 1 Summary (2024-03-31):
+
+Ukrainian Drone Startup:
+  - Attempted fundraising of $1,000,000
+
+Anduril Industries:
+  - Attempted fundraising of $20,000,000
+
+US Government (DoD):
+  - Created research project: Advanced Autonomous Drone Regulation Strategies
+
+Russian Government (Ministry of Defense):
+  - Created research project: Autonomous Drone Development
+
+Iranian Drone Manufacturer:
+  - Attempted fundraising of $20,000,000
+
+Public Events:
+  - Round 1: New technological breakthrough announced in autonomous systems.
+2026-01-18 15:44:56,071 - ai4peace.core.utils - INFO - 
+------------------------------------------------------------
+Character States - Round 1
+------------------------------------------------------------
+
+Ukrainian Drone Startup:
+  Budget: $2,000,000
+  Assets:
+    - Technical Capability: 15.0
+    - Capital: $500,000
+    - Human Resources: 25.0
+  Active Projects: 0
+
+Anduril Industries:
+  Budget: $100,000,000
+  Assets:
+    - Technical Capability: 85.0
+    - Capital: $50,000,000
+    - Human Resources: 500.0
+  Active Projects: 0
+
+US Government (DoD):
+  Budget: $1,900,000,000
+  Assets:
+    - Technical Capability: 15.0
+    - Capital: $700,000,000
+    - Human Resources: 5000.0
+  Active Projects: 1
+    - Advanced Autonomous Drone Regulation Strategies: 30% complete
+
+Russian Government (Ministry of Defense):
+  Budget: $1,500,000,000
+  Assets:
+    - Technical Capability: 70.0
+    - Capital: $800,000,000
+    - Human Resources: 8000.0
+  Active Projects: 0
+
+Iranian Drone Manufacturer:
+  Budget: $50,000,000
+  Assets:
+    - Technical Capability: 50.0
+    - Capital: $30,000,000
+    - Human Resources: 300.0
+  Active Projects: 0
+
+Round 2 Summary:
+2026-01-18 15:45:21,158 - ai4peace.core.simulation - INFO - Round 2 Summary (2024-06-29):
+
+Ukrainian Drone Startup:
+  - Attempted fundraising of $1,500,000
+
+Anduril Industries:
+  - Attempted fundraising of $20,000,000
+
+US Government (DoD):
+  - Attempted fundraising of $500,000,000
+
+Russian Government (Ministry of Defense):
+  - Attempted fundraising of $200,000,000
+
+Iranian Drone Manufacturer:
+  - Attempted fundraising of $10,000,000
+
+Public Events:
+  - Round 1: New technological breakthrough announced in autonomous systems.
+2026-01-18 15:45:21,158 - ai4peace.core.utils - INFO - 
+------------------------------------------------------------
+Character States - Round 2
+------------------------------------------------------------
+
+Ukrainian Drone Startup:
+  Budget: $2,000,000
+  Assets:
+    - Technical Capability: 15.0
+    - Capital: $500,000
+    - Human Resources: 25.0
+  Active Projects: 0
+
+Anduril Industries:
+  Budget: $100,000,000
+  Assets:
+    - Technical Capability: 85.0
+    - Capital: $50,000,000
+    - Human Resources: 500.0
+  Active Projects: 0
+
+US Government (DoD):
+  Budget: $1,850,000,000
+  Assets:
+    - Technical Capability: 15.0
+    - Capital: $700,000,000
+    - Human Resources: 5000.0
+  Active Projects: 1
+    - Advanced Autonomous Drone Regulation Strategies: 60% complete
+
+Russian Government (Ministry of Defense):
+  Budget: $1,500,000,000
+  Assets:
+    - Technical Capability: 70.0
+    - Capital: $800,000,000
+    - Human Resources: 8000.0
+  Active Projects: 0
+
+Iranian Drone Manufacturer:
+  Budget: $50,000,000
+  Assets:
+    - Technical Capability: 50.0
+    - Capital: $30,000,000
+    - Human Resources: 300.0
+  Active Projects: 0
+
+2026-01-18 15:45:43,966 - ai4peace.core.simulation - INFO - 
+Round 3 Summary:
+2026-01-18 15:45:43,966 - ai4peace.core.simulation - INFO - Round 3 Summary (2024-09-27):
+
+Ukrainian Drone Startup:
+  - Attempted fundraising of $1,000,000
+
+Anduril Industries:
+  - Attempted fundraising of $15,000,000
+
+US Government (DoD):
+  - Attempted fundraising of $500,000,000
+
+Russian Government (Ministry of Defense):
+  - Created research project: Autonomous Drone Development
+
+Iranian Drone Manufacturer:
+  - Attempted fundraising of $15,000,000
+
+Public Events:
+  - Round 1: New technological breakthrough announced in autonomous systems.
+2026-01-18 15:45:43,966 - ai4peace.core.utils - INFO - 
+------------------------------------------------------------
+Character States - Round 3
+------------------------------------------------------------
+
+Ukrainian Drone Startup:
+  Budget: $2,000,000
+  Assets:
+    - Technical Capability: 15.0
+    - Capital: $500,000
+    - Human Resources: 25.0
+  Active Projects: 0
+
+Anduril Industries:
+  Budget: $100,000,000
+  Assets:
+    - Technical Capability: 85.0
+    - Capital: $50,000,000
+    - Human Resources: 500.0
+  Active Projects: 0
+
+US Government (DoD):
+  Budget: $1,800,000,000
+  Assets:
+    - Technical Capability: 15.0
+    - Capital: $700,000,000
+    - Human Resources: 5000.0
+  Active Projects: 1
+    - Advanced Autonomous Drone Regulation Strategies: 90% complete
+
+Russian Government (Ministry of Defense):
+  Budget: $1,500,000,000
+  Assets:
+    - Technical Capability: 70.0
+    - Capital: $800,000,000
+    - Human Resources: 8000.0
+  Active Projects: 0
+
+Iranian Drone Manufacturer:
+  Budget: $50,000,000
+  Assets:
+    - Technical Capability: 50.0
+    - Capital: $30,000,000
+    - Human Resources: 300.0
+  Active Projects: 0
+

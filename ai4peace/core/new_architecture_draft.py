@@ -145,86 +145,83 @@ class GameScenario(abc.ABC):
         pass
 
 
+##### EXAMPLE GO FISH SCENARIO IMPLEMENTATION BELOW #####
 
-
-##### EXAMPLE TEXAS HOLD'EM SCENARIO IMPLEMENTATION BELOW #####
-
-class TexasHoldemGameState(GameState):
-    """Game state for Texas Hold'em poker.
-    This includes the deck, the community cards, and pot size
+class GoFishGameState(GameState):
+    """Game state for Go Fish
+    This is just the deck / draw pile
     """
-    deck: list[str]
-    community_cards: list[str]
-    pot_size: float
+    draw_pile: list[str]
+    current_asking_player: str | None
 
-class TexasHoldemPlayerState(PlayerState):
-    """Player state for Texas Hold'em poker.
-    This includes the player's hand, chips, and view of other players' chips
+class GoFishPlayerState(PlayerState):
+    """Player state for Go Fish cardgame.
+    This includes the player's hand, revealed cards, and a view of other players' chips
     """
     hand: list[str]
-    chips: float
-    current_max_bet_intention: int
-    other_players_current_chips: dict[str, float]
-    other_players_hand_guesses: dict[str, list[str]]
+    own_revealed_sets: list[list[str]]
+    other_players_desired_cards: dict[str, list[str]]
+    other_players_missing_cards: dict[str, list[str]]
+    other_players_revealed_sets: dict[str, list[str]]
 
-class TexasHoldemGamemasterUpdateMessage(PlayerStateUpdates):
-    """Player state updates for Texas Hold'em poker.
-    This includes changes to the player's chips, hand, and view of other players' chips
+class GoFishGamemasterUpdateMessage(PlayerStateUpdates):
+    """Player state updates for Go Fish cardgame.
+    This includes changes to the player's hand (additions or removals),
+    and changes in cards which have been laid down (self or others)
+    The player is then responsible for parsing this into their own state representation.
     """
-    chips_change: float
     new_cards: list[str]
-    other_players_chips_changes: dict[str, float]
+    removed_cards: list[str]
+    new_revealed_sets: dict[str, list[str]]
 
-class TexasHoldemPlayerProposedMove(PlayerProposedMove):
-    """Player proposed move for Texas Hold'em poker.
-    This includes the player's action (fold, call, raise) and amount if applicable
+
+class GoFishPlayerProposedMove(PlayerProposedMove):
+    """Player proposed move for Go Fish cardgame.
+    This includes the name of the player being asked for a card, and which card is being requested.
     """
-    action: str  # "fold", "call", "raise"
-    amount: float | None = None  # Only applicable for "raise"
+    request_card_from_player_name: str
+    requested_card: str
 
 
-class TexasHoldemMoveCorrectionMessage(MoveCorrectionMessage):
-    """Move correction message for Texas Hold'em poker.
-    This includes any adjustments to the player's proposed move
+class GoFishMoveCorrectionMessage(MoveCorrectionMessage):
+    """Move correction message for Go Fish cardgame.
+    If the player requested any invalid options, this is a proposed correction
     """
-    required_bid_amount: float
-    other_player_actions: dict[str, str]  # e.g. {"Player1": "raise", "Player2": "call"}
+    request_card_from_player_name: str
+    requested_card: str
 
 
-class TexasHoldemPlayer(Player):
-    """Player for Texas Hold'em poker.
+class GoFishPlayer(Player):
+    """Player for Go Fish cardgame
     Implements the player logic and decision-making
     """
 
-    def update_state(self, msg: TexasHoldemGamemasterUpdateMessage) -> None:
+    def update_state(self, msg: GoFishGamemasterUpdateMessage) -> None:
         pass
 
-    def propose_actions(self) -> TexasHoldemPlayerProposedMove:
+    def propose_actions(self) -> GoFishPlayerProposedMove:
         pass
 
-    def correct_moves(self, move_modifications: TexasHoldemMoveCorrectionMessage) -> TexasHoldemPlayerProposedMove:
+    def correct_moves(self, move_modifications: GoFishMoveCorrectionMessage) -> GoFishPlayerProposedMove:
+        # It's very unlikely that in Go fish we would have a bad set of moves, but we need to handle this.
         pass
 
 
-class TexasHoldemGameMaster(GenericGameMaster):
-    """Game master for Texas Hold'em poker.
-    Implements the game logic and player interactions
-    Goal: Simulate a full game (multiple hands, until only one player is remaining)
+class GoFishGameMaster(GenericGameMaster):
+    """Game master for Go Fish.
+    Implements the game logic, player interactions, and end-of-round outlays of collected sets
+    Goal: Simulate a full game (until one player has played all of their cards)
     """
 
-    def create_player_update_messages(self, player: TexasHoldemPlayer) -> TexasHoldemGamemasterUpdateMessage:
+    def create_player_update_messages(self, player: GoFishPlayer) -> GoFishGamemasterUpdateMessage:
         pass
 
-    def get_player_move(self, player: TexasHoldemPlayer) -> TexasHoldemPlayerProposedMove:
+    def get_player_move(self, player: GoFishPlayer) -> GoFishPlayerProposedMove:
         pass
 
-    def simulate_one_round(self, game_state: TexasHoldemGameState, actions: dict[str, TexasHoldemPlayerProposedMove]):
+    def simulate_one_round(self, game_state: GoFishGameState, actions: dict[str, GoFishPlayerProposedMove]):
         """
-        Because of the multiple stages of bidding and  an option of modeling the bidding process within the CorrectionMessage exchange loop, or as separate rounds,
-        some of which rounds are bidding-only rounds.
-        :param game_state:
-        :param actions:
-        :return:
+        Note: Whoever is asked for a card becomes the "active" player next round
         """
 
     def get_game_ending(self):
@@ -234,16 +231,14 @@ class TexasHoldemGameMaster(GenericGameMaster):
         pass
 
 @attrs.define()
-class TexasHoldemScenario(GameScenario):
+class GoFishScenario(GameScenario):
     llm_client: Any
     n_players: int = 3
-    min_bid: float = 10.0
-    player_starting_chips: float = 500.0
 
-    def create_game_state(self, start_time: str | int | datetime.datetime | None = None) -> TexasHoldemGameState:
+    def create_game_state(self, start_time: str | int | datetime.datetime | None = None) -> GoFishGameState:
         pass
 
-    def create_players(self) -> list[TexasHoldemPlayer]:
+    def create_players(self) -> list[GoFishPlayer]:
         pass
 
     def get_game_master(self) -> str:
@@ -252,8 +247,8 @@ class TexasHoldemScenario(GameScenario):
 
 @click.option(
     "--scenario",
-    default="ai4peace.scenarios.drone_arms_control:DroneArmsControlScenario",
-    help="Scenario module path or file path (default: ai4peace.scenarios.drone_arms_control:DroneArmsControlScenario)",
+    default="ai4peace.core.new_architecture_draft.py:GoFishScenario",
+    help="Scenario module path or file path (default: ai4peace.core.new_architecture_draft.py:GoFishScenario)",
 )
 @click.option(
     "--model",

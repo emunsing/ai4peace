@@ -29,8 +29,11 @@ class ModelFamily(str, Enum):
     COMPLETION = "completion"
     EMBEDDING = "embedding"
 
-
 def load_scenario(scenario_path: str) -> Scenario:
+    cls = load_scenario_class(scenario_path)
+    return cls()
+
+def load_scenario_class(scenario_path: str):
     """Load a scenario from a Python file.
     
     Args:
@@ -53,7 +56,7 @@ def load_scenario(scenario_path: str) -> Scenario:
             scenario_class = getattr(module, class_name)
             if isinstance(scenario_class, type) and issubclass(scenario_class, Scenario):
                 logger.info(f"Loaded scenario class: {class_name} from {module_path}")
-                return scenario_class()
+                return scenario_class
             else:
                 raise ValueError(f"{class_name} is not a Scenario subclass")
         except (ImportError, AttributeError) as e:
@@ -70,7 +73,7 @@ def load_scenario(scenario_path: str) -> Scenario:
                 issubclass(attr, Scenario) and 
                 attr is not Scenario):
                 logger.info(f"Loaded scenario class: {attr_name} from {scenario_path}")
-                return attr()
+                return attr
     except ImportError:
         pass
     
@@ -93,7 +96,7 @@ def load_scenario(scenario_path: str) -> Scenario:
                     issubclass(attr, Scenario) and 
                     attr is not Scenario):
                     logger.info(f"Loaded scenario class: {attr_name} from {scenario_path}")
-                    return attr()
+                    return attr
         except ImportError as e:
             raise ImportError(f"Could not import scenario from {scenario_path}: {e}")
     

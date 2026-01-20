@@ -79,6 +79,12 @@ from ai4peace.core.simulation_runner import (
     default=False,
     help="Enable verbose logging",
 )
+@click.option(
+    "--log-file",
+    default=f"transcript_{datetime.now().replace(microsecond=0).isoformat()}.jsonl",
+    type=str,
+    help="Save the game transcript to this file",
+)
 def main(
     api_key: str,
     scenario: str,
@@ -92,6 +98,7 @@ def main(
     function_calling: bool,
     structured_output: bool,
     verbose: bool,
+    log_file: str,
 ):
     """Run a single game simulation.
     
@@ -117,6 +124,7 @@ def main(
             json_output=True,  # Always True for our use case
             structured_output=structured_output,
             verbose=verbose,
+            log_file=log_file,
         )
         
         click.echo(f"\nSimulation complete: {results['rounds_completed']} rounds completed")

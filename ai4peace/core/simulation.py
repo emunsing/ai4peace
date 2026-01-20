@@ -9,10 +9,10 @@ from .game_state import GameState
 from .agent import GameAgent
 from .gamemaster import GameMaster
 from .actions import Action
-from .utils import print_character_states
+from .utils import print_character_states, get_transcript_logger
 
 logger = logging.getLogger(__name__)
-
+script_logger = get_transcript_logger()
 
 class Simulation:
     """Main simulation orchestrator."""
@@ -48,10 +48,11 @@ class Simulation:
         Returns:
             Dictionary containing simulation results and history
         """
+
         logger.info(f"Starting simulation: {len(self.agents)} agents, {self.max_rounds} rounds")
+        script_logger.info(f"{len(self.agents)} agents - {self.max_rounds} rounds")
         logger.info(f"Initial date: {self.game_state.current_date.strftime('%Y-%m-%d')}")
-        # conserve screen real estate for now
-        logging.getLogger("autogen_core.events").setLevel(logging.WARNING)
+        script_logger.info(f"Initial date: {self.game_state.current_date.strftime('%Y-%m-%d')}")
 
         # Print character states every round if log level is INFO or higher
         if logger.isEnabledFor(logging.INFO):

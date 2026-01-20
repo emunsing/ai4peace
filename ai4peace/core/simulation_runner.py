@@ -5,6 +5,7 @@ import os
 import sys
 from datetime import datetime
 from enum import Enum
+
 from pathlib import Path
 from typing import Dict, Optional, Any
 
@@ -17,13 +18,10 @@ from .game_state import GameState
 from .agent import GameAgent
 from .gamemaster import GameMaster
 from .simulation import run_simulation_sync
-from .utils import print_character_states
+from .utils import setup_logging, print_character_states 
 from ..scenarios.base import Scenario
 
 logger = logging.getLogger(__name__)
-
-logging.getLogger("autogen_ext").setLevel(logging.ERROR)
-logging.getLogger("autogen_core.events").setLevel(logging.WARNING)
 
 class ModelFamily(str, Enum):
     """Valid model families for autogen-ext."""
@@ -194,6 +192,7 @@ def simulate_one_game(
     json_output: bool = True,
     structured_output: bool = False,
     verbose: bool = False,
+    log_file: str = None,
 ) -> Dict[str, Any]:
     """Run a single game simulation.
     
@@ -219,13 +218,10 @@ def simulate_one_game(
         - "rounds_completed": Number of rounds completed
     """
     # Set up logging
-    log_level = logging.DEBUG if verbose else logging.INFO
-    logging.basicConfig(
-        level=log_level,
-        format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
-    )
-    
+    setup_logging(verbose, log_file)
+
     logger.info(f"Starting simulation: {max_rounds} rounds")
+
     if api_base:
         logger.info(f"Using custom API base: {api_base}")
     logger.debug(f"Model: {model}, Family: {family}")

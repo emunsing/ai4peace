@@ -13,9 +13,10 @@ from autogen_agentchat.messages import BaseTextChatMessage
 from .game_state import GameState, CharacterState
 from .actions import Action, ActionType, ResearchProjectAction, MessageAction, EspionageAction
 from .memory import MemoryStore
+from .utils import get_transcript_logger
 
 logger = logging.getLogger(__name__)
-logging.getLogger("autogen_core.events").setLevel(logging.WARNING)
+transcript_logger = get_transcript_logger()
 
 class GameAgent:
     """Wrapper around Autogen agent for game participation."""
@@ -47,8 +48,6 @@ class GameAgent:
         
         self.clean_name = re.sub("\W|^(?=\d)","_", self.character_name)
 
-
-        logging.getLogger("autogen_agentchat").setLevel(logging.ERROR)
         self.agent = AssistantAgent(
             name=self.clean_name,
             model_client=llm_client,
@@ -271,19 +270,13 @@ You can take multiple actions per round. Consider:
         actions_data = data.get("actions", [])
         messages_data = data.get("messages", [])
         
-        # TODO: replacing current logging with simple display
-        print(f"Name: {self.character_name}\n")
-        print("\nACTIONS:\n")
+        transcript_logger.info(f"Actions:{self.character_name}")
         for i, a in enumerate(actions_data):
-            print(f"{i} : {a}")
-        print("\nMessages:\n", messages_data)
-        for i, m in enumerate(messages_data):
-            print(f"{i} : {m}")
-        # NOTE: replaced with a list!
-        
-        # For now, we'll create a single Action object that can represent multiple actions
-        # In a more complete implementation, you might want to return a list
-        # For simplicity, we'll take the first action
+            transcript_logger.info(f"{i}:{a}")
+        if len(messages_data) > 0:
+            transcript_logger.info(f"Messages:{self.character_name}")
+            for i, m in enumerate(messages_data):
+                transcript_logger.info(f"{i}:{m}")
         
         if not actions_data:
             # Default: no action
@@ -295,14 +288,11 @@ You can take multiple actions per round. Consider:
         else:
             actions_taken = []
             for action in actions_data:
-            # doesn't look like we need this?
-            #action_type_str = action.get("type", "")
         
             # Map to ActionType and create Action object
             # TODO: why are we passing messages here?
                 parsed_action = self._create_action_from_dict(action, messages_data)
                 actions_taken.append(parsed_action)
-            print("we have : ", len(actions_taken))
             return actions_taken
     
     def _create_action_from_dict(self, action_dict: Dict, messages: List[Dict]) -> Action:

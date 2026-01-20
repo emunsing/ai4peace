@@ -5,6 +5,7 @@ from typing import Dict, List, Optional, Any
 import random
 import json
 
+from .utils import get_transcript_logger
 from .game_state import (
     GameState,
     CharacterState,
@@ -36,6 +37,7 @@ class GameMaster:
         """
         self.llm_client = llm_client
         self.random = random.Random(random_seed)
+        self.transcript_logger = get_transcript_logger
     
     def process_round(
         self,
@@ -121,8 +123,7 @@ class GameMaster:
         elif action.action_type == ActionType.MARKETING:
             action_summary = self._process_marketing(character, action)
         
-        # TODO: correct logging level
-        print("GM DECISION: ", action_summary)
+        self.transcript_logger.info(action_summary)
         # Record action
         character.recent_actions.append(
             f"Round {game_state.round_number}: {action_summary}"

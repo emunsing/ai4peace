@@ -1,7 +1,12 @@
 import abc
 import datetime
 from abc import ABC, abstractmethod, ABCMeta
-datetime
+import click
+import json
+import attrs
+from typing import Any
+from ai4peace.core.simulation_runner import load_scenario_class
+from simulation_runner import  create_llm_client
 
 """
 Design philosophy: 
@@ -117,6 +122,30 @@ class GenericGameMaster(abc.ABC):
         """
         pass
 
+@attrs.define
+class GameScenario(abc.ABC):
+    """Abstract base class for defining game scenarios.
+    Each scenario must implement methods to create the initial game state and players,
+    based on parameters passed in through kwargs (e.g. stopping conditions, number of players, etc).
+    """
+
+    @abstractmethod
+    def create_game_state(self, start_time: str | int | datetime.datetime | None = None) -> GameState:
+        pass
+
+    @abstractmethod
+    def create_players(self) -> list[Player]:
+        pass
+
+    @abstractmethod
+    def get_game_master(self) -> str:
+        # Create game state
+        # Create players
+        # Create gamemaster
+        pass
+
+
+
 
 ##### EXAMPLE TEXAS HOLD'EM SCENARIO IMPLEMENTATION BELOW #####
 
@@ -191,7 +220,7 @@ class TexasHoldemGameMaster(GenericGameMaster):
 
     def simulate_one_round(self, game_state: TexasHoldemGameState, actions: dict[str, TexasHoldemPlayerProposedMove]):
         """
-        We have an option of modeling the bidding process within the CorrectionMessage exchange loop, or as separate rounds,
+        Because of the multiple stages of bidding and  an option of modeling the bidding process within the CorrectionMessage exchange loop, or as separate rounds,
         some of which rounds are bidding-only rounds.
         :param game_state:
         :param actions:
@@ -203,3 +232,75 @@ class TexasHoldemGameMaster(GenericGameMaster):
 
     def run_simulation(self):
         pass
+
+@attrs.define()
+class TexasHoldemScenario(GameScenario):
+    llm_client: Any
+    n_players: int = 3
+    min_bid: float = 10.0
+    player_starting_chips: float = 500.0
+
+    def create_game_state(self, start_time: str | int | datetime.datetime | None = None) -> TexasHoldemGameState:
+        pass
+
+    def create_players(self) -> list[TexasHoldemPlayer]:
+        pass
+
+    def get_game_master(self) -> str:
+        pass
+
+
+@click.option(
+    "--scenario",
+    default="ai4peace.scenarios.drone_arms_control:DroneArmsControlScenario",
+    help="Scenario module path or file path (default: ai4peace.scenarios.drone_arms_control:DroneArmsControlScenario)",
+)
+@click.option(
+    "--model",
+    default="gpt-4o-mini",
+    help="Model name to use (default: gpt-4o-mini)",
+)
+@click.option(
+    "--api-base",
+    envvar="OPENAI_API_BASE",
+    default=None,
+    help="Custom API base URL for alternative providers (or set OPENAI_API_BASE env var)",
+)
+@click.option(
+    "--json-kwargs",
+    default=3,
+    type=str,
+)
+def main(
+        api_key: str,
+        scenario: str,
+        model: str,
+        api_base: str,
+        json_kwargs: str,
+):
+    """Run a single game simulation.
+
+    This is the main entrypoint for running simulations. It can be called
+    from the command line or imported and called programmatically.
+    """
+
+    try:
+        # Load scenario
+        scenario_class = load_scenario_class(scenario)
+
+        llm_client = create_llm_client(
+            api_key=api_key,
+            model=model,
+            api_base=api_base,
+        )
+
+        kwargs = json.loads(json_kwargs)
+
+        scenario_instance = scenario_class(llm_client=llm_client, **kwargs)
+
+        gamemaster = scenario_instance.get_game_master()
+        gamemaster.run_simulation()
+
+    except Exception as e:
+        click.echo(f"Error: {e}", err=True)
+        raise click.Abort()

@@ -41,6 +41,7 @@ class Simulation:
         self.max_rounds = max_rounds
         self.history: List[Dict] = []
     
+    # 
     async def run(self) -> Dict:
         """Run the simulation.
         
@@ -49,8 +50,10 @@ class Simulation:
         """
         logger.info(f"Starting simulation: {len(self.agents)} agents, {self.max_rounds} rounds")
         logger.info(f"Initial date: {self.game_state.current_date.strftime('%Y-%m-%d')}")
-        
-                    # Print character states every round if log level is INFO or higher
+        # conserve screen real estate for now
+        logging.getLogger("autogen_core.events").setLevel(logging.WARNING)
+
+        # Print character states every round if log level is INFO or higher
         if logger.isEnabledFor(logging.INFO):
             print_character_states(
                 self.game_state,
@@ -76,14 +79,15 @@ class Simulation:
                 private_updates = self._get_private_updates(character_name)
                 
                 try:
-                    action = await agent.take_turn(
+                    per_agent_actions = await agent.take_turn(
                         game_state=self.game_state,
                         game_context=self.game_context,
                         action_summary=action_summary,
                         private_updates=private_updates,
                     )
-                    actions.append(action)
-                    logger.info(f"{character_name} submitted action: {action.action_type.value}")
+                    actions.extend(per_agent_actions)
+                    for agent_action in per_agent_actions:
+                        logger.info(f"{character_name} submitted action: {agent_action.action_type.value}")
                 except Exception as e:
                     logger.error(f"Error getting action from {character_name}: {e}", exc_info=True)
                     # Create a no-op action

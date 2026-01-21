@@ -15,7 +15,7 @@ from .actions import Action, ActionType, ResearchProjectAction, MessageAction, E
 from .memory import MemoryStore
 
 logger = logging.getLogger(__name__)
-
+logging.getLogger("autogen_core.events").setLevel(logging.WARNING)
 
 class GameAgent:
     """Wrapper around Autogen agent for game participation."""
@@ -44,9 +44,11 @@ class GameAgent:
         
         # Build system message
         self.system_message = self._build_system_message(system_message_template)
-                
+        
         self.clean_name = re.sub("\W|^(?=\d)","_", self.character_name)
 
+
+        logging.getLogger("autogen_agentchat").setLevel(logging.ERROR)
         self.agent = AssistantAgent(
             name=self.clean_name,
             model_client=llm_client,
@@ -62,7 +64,9 @@ class GameAgent:
         private = self.character_state.private_info
         public = self.character_state.public_view
         
-        system_message = f"""You are {self.character_name}, a participant in an international technology policy simulation focused on arms controls for autonomous drones.
+        # TODO: could we templatize a {self.simulation_type} here? where would we define it?
+        # e.g. "arms controls for autonomous drones" vs "the dynamics of AI labs advancing the research frontier"
+        system_message = f"""You are {self.character_name}, a participant in an international technology policy simulation focused on the dynamics of AI labs advancing the research frontier.
 
 ## Your Identity and Goals
 
@@ -166,7 +170,7 @@ What actions do you want to take this round? Respond with a JSON object as speci
 
 You can take multiple actions per round. Consider:
 1. **Fundraising** - Request budget increases or raise capital
-2. **Research Projects** - Create new research initiatives (will consume budget and assets)
+2. **Research Projects** - Create new research initiatives (will consume budget and assets, be conservative in initial asks)
 3. **Cancel Projects** - Free up resources by cancelling research
 4. **Capital Investment** - Invest in infrastructure, factories, compute, etc.
 5. **Sell Capital** - Divest assets to raise funds
@@ -249,7 +253,7 @@ You can take multiple actions per round. Consider:
                 "messages": []
             })
     
-    def _parse_response(self, response_text: str) -> Action:
+    def _parse_response(self, response_text: str) -> List[Action]:
         """Parse agent response into Action objects."""
         # Try to extract JSON from response
         import re
@@ -267,25 +271,39 @@ You can take multiple actions per round. Consider:
         actions_data = data.get("actions", [])
         messages_data = data.get("messages", [])
         
+        # TODO: replacing current logging with simple display
+        print(f"Name: {self.character_name}\n")
+        print("\nACTIONS:\n")
+        for i, a in enumerate(actions_data):
+            print(f"{i} : {a}")
+        print("\nMessages:\n", messages_data)
+        for i, m in enumerate(messages_data):
+            print(f"{i} : {m}")
+        # NOTE: replaced with a list!
+        
         # For now, we'll create a single Action object that can represent multiple actions
         # In a more complete implementation, you might want to return a list
         # For simplicity, we'll take the first action
         
         if not actions_data:
             # Default: no action
-            return Action(
+            return [Action(
                 action_type=ActionType.MESSAGE,  # Dummy type
                 character_name=self.character_name,
                 round_number=0,
-            )
+            )]
+        else:
+            actions_taken = []
+            for action in actions_data:
+            # doesn't look like we need this?
+            #action_type_str = action.get("type", "")
         
-        first_action = actions_data[0]
-        action_type_str = first_action.get("type", "")
-        
-        # Map to ActionType and create Action object
-        action = self._create_action_from_dict(first_action, messages_data)
-        
-        return action
+            # Map to ActionType and create Action object
+            # TODO: why are we passing messages here?
+                parsed_action = self._create_action_from_dict(action, messages_data)
+                actions_taken.append(parsed_action)
+            print("we have : ", len(actions_taken))
+            return actions_taken
     
     def _create_action_from_dict(self, action_dict: Dict, messages: List[Dict]) -> Action:
         """Create an Action object from a dictionary."""
@@ -357,6 +375,5 @@ You can take multiple actions per round. Consider:
                 to_character=first_message.get("to", ""),
                 content=first_message.get("content", ""),
             )
-        
         return action
 

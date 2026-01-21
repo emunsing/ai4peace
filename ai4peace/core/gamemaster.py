@@ -17,6 +17,9 @@ from .game_state import (
 from .actions import Action, ActionType
 
 
+# TODO: these should more generally come from the right scenario
+from ..scenarios.basic_ai_race import RANDOM_EVENTS
+
 class GameMaster:
     """Gamemaster that processes actions and updates game state."""
     
@@ -118,6 +121,8 @@ class GameMaster:
         elif action.action_type == ActionType.MARKETING:
             action_summary = self._process_marketing(character, action)
         
+        # TODO: correct logging level
+        print("GM DECISION: ", action_summary)
         # Record action
         character.recent_actions.append(
             f"Round {game_state.round_number}: {action_summary}"
@@ -196,7 +201,6 @@ class GameMaster:
         
         # Assess realism
         project.realistic_goals = self._assess_research_realism(project, character)
-        
         character.private_info.projects.append(project)
         
         return f"Created research project '{project_data.name}'"
@@ -435,13 +439,15 @@ class GameMaster:
         """Introduce random external events."""
         event_prob = 0.1  # 10% chance per round
         if self.random.random() < event_prob:
-            events = [
-                "Political shifts in international relations affect drone policy discussions.",
-                "New technological breakthrough announced in autonomous systems.",
-                "Major conflict escalation impacts defense spending priorities.",
-                "Regulatory body proposes new guidelines for autonomous weapons.",
-                "Public opinion shifts on autonomous military technology.",
-            ]
+            #events = [
+            #    "Political shifts in international relations affect drone policy discussions.",
+            #    "New technological breakthrough announced in autonomous systems.",
+            ##    "Major conflict escalation impacts defense spending priorities.",
+            ##    "Regulatory body proposes new guidelines for autonomous weapons.",
+            ##
+            #    "Public opinion shifts on autonomous military technology.",
+            #]
+            events = RANDOM_EVENTS
             event = self.random.choice(events)
             game_state.public_events.append(f"Round {game_state.round_number}: {event}")
     

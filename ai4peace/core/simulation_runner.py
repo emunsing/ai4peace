@@ -22,6 +22,8 @@ from ..scenarios.base import Scenario
 
 logger = logging.getLogger(__name__)
 
+logging.getLogger("autogen_ext").setLevel(logging.ERROR)
+logging.getLogger("autogen_core.events").setLevel(logging.WARNING)
 
 class ModelFamily(str, Enum):
     """Valid model families for autogen-ext."""

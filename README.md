@@ -120,6 +120,26 @@ results = run_simulation_sync(
 )
 ```
 
+## MVP: Create and run a new scenario
+
+1. Copy one of the existing examples in `scenarios/` and give your new scenario a name.
+2. Edit the system prompt in `get_game_context` with the Background, Current Situation, and Key Consideration (a major new development or focusing theme) for your simulation 
+3. For each of your agentic roles, create a character by defining a function `create_character_name()`.
+This includes the following fields for each character (feel free to prompt an LLM to fill them! or purely-human-crafted prose :):
+* name
+* true/private info (only known to the character): their "objectives" (str), "strategy" (str), "budget" (dict[str, float] for a given year and a budget in USD), and asset balance: "technical_capability" (float 0.0-100.0), "capital" (int for USD), and "human" (float for number of employees)
+* stated/public info (visible to other characters): their "stated_objectives" (str), "stated_strategy" (str), and any "public_artifacts" (list[str] of products/services they offer)
+
+For now, the game mechanics, victory conditions, possible actions, and public/private character information fields are fixed in prompts and code.
+This is straightforward to extend/modify if you make changes in both code & prompts.
+4. In the same file, optionally define a list of `RESEARCH_TOPICS` and `RANDOM_EVENTS` you know you'd like to include in the simulation as context. Note: right now the research topics are not used as an explicit filter.
+5. Check the system prompt in `_build_system_message()` (in `core/agent.py`) to make sure it fits with your scenario (will be templated soon!)
+6. Add imports for your new scenario in `scenarios/__init__.py`.
+7. Run your scenario with
+```
+poetry run python simulate.py --api_key sk-{..} --scenario ai4peace.scenarios.your_new_scenario_module:YourNewScenarioClass
+```
+
 ## Example Scenario: Arms Control on Autonomous Drones
 
 ### Background

@@ -1,9 +1,9 @@
 import click
 import json
 import logging
-from typing import Any, Optional
+from typing import Optional
 from ai4peace.core.simulation_runner import load_scenario_class, create_llm_client
-from ai4peace.core.new_architecture_draft import GameScenario
+from ai4peace.core_v2.new_architecture_draft import GameScenario
 
 logger = logging.getLogger(__name__)
 

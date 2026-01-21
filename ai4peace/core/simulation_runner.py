@@ -54,7 +54,7 @@ def load_scenario_class(scenario_path: str, must_subclass=Scenario):
             from importlib import import_module
             module = import_module(module_path)
             scenario_class = getattr(module, class_name)
-            if isinstance(scenario_class, type) and issubclass(scenario_class, must_subclass.__class__):
+            if isinstance(scenario_class, type) and issubclass(scenario_class, must_subclass):
                 logger.info(f"Loaded scenario class: {class_name} from {module_path}")
                 return scenario_class
             else:

@@ -33,7 +33,7 @@ def load_scenario(scenario_path: str) -> Scenario:
     cls = load_scenario_class(scenario_path)
     return cls()
 
-def load_scenario_class(scenario_path: str):
+def load_scenario_class(scenario_path: str, must_subclass=Scenario):
     """Load a scenario from a Python file.
     
     Args:
@@ -54,11 +54,11 @@ def load_scenario_class(scenario_path: str):
             from importlib import import_module
             module = import_module(module_path)
             scenario_class = getattr(module, class_name)
-            if isinstance(scenario_class, type) and issubclass(scenario_class, Scenario):
+            if isinstance(scenario_class, type) and issubclass(scenario_class, must_subclass.__class__):
                 logger.info(f"Loaded scenario class: {class_name} from {module_path}")
                 return scenario_class
             else:
-                raise ValueError(f"{class_name} is not a Scenario subclass")
+                raise ValueError(f"{class_name} is not a {must_subclass.__name__} subclass")
         except (ImportError, AttributeError) as e:
             raise ImportError(f"Could not load scenario class {class_name} from {module_path}: {e}")
     

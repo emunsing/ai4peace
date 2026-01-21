@@ -6,11 +6,8 @@ import json
 import attrs
 import random
 import logging
-import re
 from typing import Any, Optional
 from ai4peace.core.simulation_runner import load_scenario_class, create_llm_client
-from autogen_agentchat.agents import AssistantAgent
-from autogen_agentchat.messages import BaseTextChatMessage
 
 logger = logging.getLogger(__name__)
 
@@ -34,7 +31,7 @@ class PlayerState:
 
 @attrs.define
 class PlayerStateUpdates:
-    """JSON-serializable representation of updates to a player's state.
+    """JSON-serializable representation of updates to a player's state, as part of a message from the gamemaster to the player.
     The game designer must decide whether these are a diff or a full update to the player state, and design both the
     gamemaster and the player update methods accordingly."""
     pass
@@ -138,7 +135,6 @@ class GenericGameMaster(abc.ABC):
         """
         pass
 
-@attrs.define
 class GameScenario(abc.ABC):
     """Abstract base class for defining game scenarios.
     Each scenario must implement methods to create the initial game state and players,
@@ -207,6 +203,8 @@ class GoFishPlayerStateUpdates(PlayerStateUpdates):
     removed_cards: list[str] = attrs.field(factory=list)
     new_revealed_sets: dict[str, list[list[str]]] = attrs.field(factory=dict)
     other_players_hand_sizes: dict[str, int] = attrs.field(factory=dict)
+    other_players_requested_cards: dict[str, list[str]] = attrs.field(factory=dict)
+    other_players_recieved_cards: dict[str, list[str]] = attrs.field(factory=dict)
     draw_pile_size: int = 0
 
 @attrs.define
@@ -237,52 +235,14 @@ class GoFishMoveCorrectionMessage(MoveCorrectionMessage):
 @attrs.define
 class GoFishPlayer(Player):
     """Player for Go Fish cardgame
-    Implements the player logic and decision-making using LLM
+    Implements the player logic and decision-making using rule-based expert system
     """
     name: str
-    llm_client: Any
     attributes: GoFishPlayerState = attrs.field(factory=GoFishPlayerState)
-    player_background: str = "You are a strategic Go Fish player."
-    gameplay_description: str = "Try to collect sets of 4 cards of the same rank."
     available_actions: list[str] = attrs.field(factory=lambda: ["ask_for_card"])
     action_history: dict = attrs.field(factory=dict)
     last_action_timestamp: datetime.datetime = attrs.field(factory=datetime.datetime.now)
     next_action_timestamp: datetime.datetime = attrs.field(factory=datetime.datetime.now)
-    _agent: Optional[AssistantAgent] = None
-    
-    def __attrs_post_init__(self):
-        """Initialize the LLM agent after attributes are set"""
-        self.clean_name = re.sub(r"\W|^(?=\d)", "_", self.name)
-        system_message = self._build_system_message()
-        self._agent = AssistantAgent(
-            name=self.clean_name,
-            model_client=self.llm_client,
-            system_message=system_message,
-        )
-    
-    def _build_system_message(self) -> str:
-        """Build the system message for the LLM agent"""
-        return f"""You are {self.name}, playing Go Fish.
-
-## Game Rules:
-- You have a hand of cards. Your goal is to collect sets of 4 cards of the same rank.
-- On your turn, you ask another player for a specific rank (e.g., "A" for Ace, "K" for King).
-- If that player has any cards of that rank, they must give you ALL cards of that rank.
-- If they don't have that rank, they say "Go Fish" and you draw one card from the deck.
-- When you collect 4 cards of the same rank, you lay them down as a set (visible to all players).
-- The game ends when someone runs out of cards or the deck is empty.
-
-## Your Strategy:
-{self.player_background}
-{self.gameplay_description}
-
-## Response Format:
-You must respond with a JSON object containing:
-{{"request_card_from_player_name": "<player name>", "requested_card": "<rank>"}}
-
-The requested_card should be just the rank (e.g., "A", "2", "3", "J", "Q", "K"), not the full card with suit.
-Always respond with valid JSON only, no additional text."""
-
     def update_state(self, msg: GoFishGamemasterUpdateMessage) -> None:
         """Update player state based on gamemaster message"""
         updates = msg.state_updates
@@ -311,89 +271,95 @@ Always respond with valid JSON only, no additional text."""
             "new_cards": updates.new_cards,
             "removed_cards": updates.removed_cards,
             "new_revealed_sets": updates.new_revealed_sets,
+            "other_players_requested_cards": updates.other_players_requested_cards,
+            "other_players_recieved_cards": updates.other_players_recieved_cards,
+            "other_players_hand_sizes": updates.other_players_hand_sizes,
         }
 
-    async def _get_llm_response(self, prompt: str) -> str:
-        """Get response from LLM"""
-        try:
-            messages = [
-                BaseTextChatMessage(source=self.clean_name, content=self._build_system_message()),
-                BaseTextChatMessage(source=self.clean_name, content=prompt)
-            ]
-            response = await self._agent.run(task=messages)
-            response_content = response.messages[-1].content if response.messages else ""
-            return response_content
-        except Exception as e:
-            logger.error(f"{self.name} - LLM call failed: {e}", exc_info=True)
-            return json.dumps({"request_card_from_player_name": "", "requested_card": ""})
-
     def propose_actions(self) -> GoFishPlayerProposedMove:
-        """Propose actions using LLM"""
-        import asyncio
-        
-        # Build prompt with current state
-        prompt = self._build_action_prompt()
-        
-        # Get LLM response (synchronous wrapper)
-        try:
-            loop = asyncio.get_event_loop()
-        except RuntimeError:
-            loop = asyncio.new_event_loop()
-            asyncio.set_event_loop(loop)
-        
-        response_text = loop.run_until_complete(self._get_llm_response(prompt))
-        
-        # Parse response
-        try:
-            # Try to extract JSON from response
-            json_match = re.search(r'\{.*\}', response_text, re.DOTALL)
-            if json_match:
-                data = json.loads(json_match.group())
-            else:
-                data = json.loads(response_text)
-            
-            return GoFishPlayerProposedMove(
-                request_card_from_player_name=data.get("request_card_from_player_name", ""),
-                requested_card=data.get("requested_card", "")
-            )
-        except (json.JSONDecodeError, KeyError) as e:
-            logger.error(f"{self.name} - Failed to parse response: {e}")
+        """Propose actions using rule-based expert system"""
+        if not self.attributes.hand:
             return GoFishPlayerProposedMove()
-
-    def _build_action_prompt(self) -> str:
-        """Build the prompt for the LLM to decide on actions"""
+        
+        # Get ranks in our hand
         hand_ranks = [get_rank(card) for card in self.attributes.hand]
         hand_by_rank = {}
         for rank in hand_ranks:
             hand_by_rank[rank] = hand_by_rank.get(rank, 0) + 1
         
-        prompt = f"""## Your Current Hand:
-You have {len(self.attributes.hand)} cards in your hand.
-Cards by rank: {', '.join([f"{rank} ({count})" for rank, count in sorted(hand_by_rank.items())])}
-
-## Your Revealed Sets:
-{len(self.attributes.own_revealed_sets)} sets laid down: {', '.join([f"Set of {get_rank(set_cards[0])}s" for set_cards in self.attributes.own_revealed_sets]) if self.attributes.own_revealed_sets else "None"}
-
-## Other Players' Revealed Sets:
-"""
-        for player_name, sets in self.attributes.other_players_revealed_sets.items():
-            prompt += f"- {player_name}: {len(sets)} sets\n"
+        # Strategy: Ask for a rank we have, targeting players who might have that rank
+        # Prioritize ranks we have 1-3 of (to complete sets)
+        ranks_to_complete = [rank for rank, count in hand_by_rank.items() if 1 <= count < 4]
         
-        prompt += "\n## Your Turn:\n"
-        prompt += "Choose a player to ask and a rank to request. "
-        prompt += "Think strategically about which ranks you need to complete sets.\n"
-        prompt += "Respond with JSON: {\"request_card_from_player_name\": \"<name>\", \"requested_card\": \"<rank>\"}"
+        # If we have ranks to complete, use those; otherwise ask for any rank we have
+        target_ranks = ranks_to_complete if ranks_to_complete else list(hand_by_rank.keys())
         
-        return prompt
+        # Get other players
+        other_players = list(self.attributes.other_players_revealed_sets.keys())
+        if not other_players:
+            return GoFishPlayerProposedMove()
+        
+        # Find the best target player for each rank
+        best_move = None
+        best_score = -1
+        
+        for rank in target_ranks:
+            # Score potential targets based on:
+            # 1. Whether they recently asked for this rank (might have it)
+            # 2. Whether they recently received this rank (likely have it)
+            # 3. Hand size (larger hand = more likely to have it)
+            
+            for player_name in other_players:
+                score = 0
+                
+                # Get latest history
+                latest_history = self.action_history.get(str(self.last_action_timestamp), {})
+                
+                # Check if they recently requested this rank (they might have it)
+                recent_requests = latest_history.get("other_players_requested_cards", {}).get(player_name, [])
+                if rank in recent_requests:
+                    score += 3
+                
+                # Check if they recently received this rank (they likely have it)
+                recent_received = latest_history.get("other_players_recieved_cards", {}).get(player_name, [])
+                recent_received_ranks = [get_rank(card) for card in recent_received]
+                if rank in recent_received_ranks:
+                    score += 5
+                
+                # Larger hand size increases likelihood (but less weight)
+                hand_size = latest_history.get("other_players_hand_sizes", {}).get(player_name, 0)
+                if hand_size > 0:
+                    score += hand_size / 10
+                
+                if score > best_score:
+                    best_score = score
+                    best_move = GoFishPlayerProposedMove(
+                        request_card_from_player_name=player_name,
+                        requested_card=rank
+                    )
+        
+        # If we couldn't find a good move, pick randomly from what we have
+        if best_move is None or best_score <= 0:
+            if target_ranks and other_players:
+                rank = target_ranks[0]
+                best_move = GoFishPlayerProposedMove(
+                    request_card_from_player_name=other_players[0],
+                    requested_card=rank
+                )
+        
+        return best_move or GoFishPlayerProposedMove()
 
     def correct_moves(self, move_modifications: GoFishMoveCorrectionMessage) -> GoFishPlayerProposedMove:
         """Correct moves based on gamemaster feedback"""
         logger.info(f"{self.name} - Move corrected: {move_modifications.error_message}")
-        # Return the corrected move
-        return GoFishPlayerProposedMove(
-            request_card_from_player_name=move_modifications.request_card_from_player_name,
-            requested_card=move_modifications.requested_card
-        )
+        # Return the corrected move (or try again with different target)
+        if move_modifications.request_card_from_player_name and move_modifications.requested_card:
+            return GoFishPlayerProposedMove(
+                request_card_from_player_name=move_modifications.request_card_from_player_name,
+                requested_card=move_modifications.requested_card
+            )
+        # If correction doesn't have a valid move, try proposing again
+        return self.propose_actions()
 
 
 @attrs.define
@@ -625,6 +591,18 @@ class GoFishGameMaster(GenericGameMaster):
             next_index = (current_index + 1) % len(self.players)
             game_state.current_asking_player = self.players[next_index].name
         
+        # Track what each player requested and received
+        other_players_requested_cards = {}
+        other_players_recieved_cards = {}
+        
+        # The asking player requested a card
+        if asking_player_name:
+            other_players_requested_cards[asking_player_name] = [requested_rank]
+        
+        # If cards were transferred, track what was received
+        if matching_cards and asking_player_name:
+            other_players_recieved_cards[asking_player_name] = matching_cards
+        
         # Create update messages for all players with the changes
         for player in self.players:
             # Get all revealed sets
@@ -655,6 +633,8 @@ class GoFishGameMaster(GenericGameMaster):
                 removed_cards=removed_cards,
                 new_revealed_sets=all_revealed_sets,
                 other_players_hand_sizes=other_players_hand_sizes,
+                other_players_requested_cards=other_players_requested_cards,
+                other_players_recieved_cards=other_players_recieved_cards,
                 draw_pile_size=len(game_state.draw_pile)
             )
             
@@ -787,14 +767,11 @@ class GoFishScenario(GameScenario):
         players = []
         player_names = [f"Player{i+1}" for i in range(self.n_players)]
         
-        # Create players
+        # Create players (llm_client is required by scenario but not used for GoFish)
         for name in player_names:
             player = GoFishPlayer(
                 name=name,
-                llm_client=self.llm_client,
-                attributes=GoFishPlayerState(),
-                player_background=f"You are {name}, a strategic Go Fish player. Try to collect sets of 4 cards of the same rank.",
-                gameplay_description="Pay attention to what other players ask for and what sets they reveal to deduce what cards they might have."
+                attributes=GoFishPlayerState()
             )
             players.append(player)
         
@@ -904,9 +881,9 @@ def main(
         format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
     )
 
-    try:
+    try: 
         # Load scenario
-        scenario_class = load_scenario_class(scenario)
+        scenario_class = load_scenario_class(scenario, must_subclass=GameScenario)
 
         llm_client = create_llm_client(
             api_key=api_key,

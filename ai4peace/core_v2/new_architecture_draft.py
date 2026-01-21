@@ -149,7 +149,7 @@ class GameScenario(abc.ABC):
         pass
 
     @abstractmethod
-    def get_game_master(self) -> str:
+    def get_game_master(self) -> GenericGameMaster:
         # Create game state
         # Create players
         # Create gamemaster

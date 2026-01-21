@@ -16,8 +16,8 @@ logger = logging.getLogger(__name__)
 )
 @click.option(
     "--scenario",
-    default="ai4peace.core.new_architecture_draft:GoFishScenario",
-    help="Scenario module path or file path (default: ai4peace.core.new_architecture_draft:GoFishScenario)",
+    default="ai4peace.core_v2.cardgame_example:GoFishScenario",
+    help="Scenario module path or file path (default: ai4peace.core_v2.cardgame_example:GoFishScenario)",
 )
 @click.option(
     "--model",

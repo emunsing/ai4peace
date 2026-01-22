@@ -12,36 +12,27 @@ from .new_architecture_draft import (
     MoveCorrectionMessage,
 )
 
-from .wargame_state import (
-    WargameGameState,
-    WargamePlayerState,
-    AssetBalance,
-    ResearchProject,
-    Message,
-    PrivateInfo,
-    PublicView,
-)
+from .research_strategy_game_mechanics import (ResearchStrategyGameMaster,
+                                               ResearchStrategyGameState,
+                                               ResearchStrategyPlayerState,
+                                               AssetBalance,
+                                               ResearchProject,
+                                               Message,
+                                               PrivateInfo,
+                                               PublicView,
+                                               ResearchStrategyPlayer,
+                                               ResearchStrategyGamemasterUpdateMessage,
+                                               ResearchStrategyPlayerStateUpdates,
+                                               ResearchStrategyPlayerProposedMove,
+                                               ResearchStrategyMoveCorrectionMessage,
+                                               ActionType,
+                                               ResearchProjectAction,
+                                               EspionageAction,
+                                               MessageAction,
+                                               )
 
-from .wargame_actions import (
-    WargamePlayerProposedMove,
-    WargameMoveCorrectionMessage,
-    ActionType,
-    ResearchProjectAction,
-    EspionageAction,
-    MessageAction,
-)
-
-from .wargame_updates import (
-    WargameGamemasterUpdateMessage,
-    WargamePlayerStateUpdates,
-)
-
-from .wargame_player import WargamePlayer
-from .wargame_gamemaster import WargameGameMaster
-from .wargame_scenarios import (
-    BasicAIRaceScenario,
-    DroneArmsControlScenario,
-)
+from .research_strategy_scenario_drones import DroneArmsControlScenario
+from .research_strategy_scenario_basic_ai_race import BasicAIRaceScenario
 
 __all__ = [
     # Base architecture
@@ -54,27 +45,27 @@ __all__ = [
     "GamemasterUpdateMessage",
     "PlayerProposedMove",
     "MoveCorrectionMessage",
-    # Wargame state
-    "WargameGameState",
-    "WargamePlayerState",
+    # ResearchStrategy state
+    "ResearchStrategyGameState",
+    "ResearchStrategyPlayerState",
     "AssetBalance",
     "ResearchProject",
     "Message",
     "PrivateInfo",
     "PublicView",
-    # Wargame actions
-    "WargamePlayerProposedMove",
-    "WargameMoveCorrectionMessage",
+    # ResearchStrategy actions
+    "ResearchStrategyPlayerProposedMove",
+    "ResearchStrategyMoveCorrectionMessage",
     "ActionType",
     "ResearchProjectAction",
     "EspionageAction",
     "MessageAction",
-    # Wargame updates
-    "WargameGamemasterUpdateMessage",
-    "WargamePlayerStateUpdates",
-    # Wargame implementations
-    "WargamePlayer",
-    "WargameGameMaster",
+    # ResearchStrategy updates
+    "ResearchStrategyGamemasterUpdateMessage",
+    "ResearchStrategyPlayerStateUpdates",
+    # ResearchStrategy implementations
+    "ResearchStrategyPlayer",
+    "ResearchStrategyGameMaster",
     # Scenarios
     "BasicAIRaceScenario",
     "DroneArmsControlScenario",

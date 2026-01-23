@@ -43,6 +43,12 @@ pip install autogen-agentchat autogen-ext[openai]
 
 ## Quick Start
 
+Currently runs with: 
+
+```
+poetry run python -m new_architecture_runner --api-key sk-{your OpenAI key} --scenario ai4peace.core_v2.research_strategy_scenario_basic_ai_race:BasicAIRaceScenario
+```
+
 ### Run the Drone Arms Control Simulation
 
 #### Basic Usage (OpenAI)

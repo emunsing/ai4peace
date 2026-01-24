@@ -1,6 +1,7 @@
 """ResearchStrategy gamemaster implementation with modular game dynamics."""
 
 import random
+from shutil import move
 from .new_architecture_draft import PlayerStateUpdates, GamemasterUpdateMessage
 
 
@@ -13,6 +14,7 @@ import attrs
 
 import json
 import re
+import asyncio
 import logging
 from typing import Optional, Any, Dict, List
 import datetime
@@ -25,17 +27,26 @@ from .new_architecture_draft import Player
 from .new_architecture_draft import PlayerProposedMove, MoveCorrectionMessage
 
 from ..core.utils import get_transcript_logger
+import pandas as pd
 
 logger = logging.getLogger(__name__)
 script_logger = get_transcript_logger()
 
 from .new_architecture_draft import GameState, PlayerState
 
+PLANNING_INDEX_TIMEDELTA = pd.DateOffset(months=3)
+DATE_FORMAT = "%Y-%m-%d"
+
+def get_budget_index(current_date: datetime.datetime, index_offset: pd.DateOffset=PLANNING_INDEX_TIMEDELTA, duration_years=10) -> list[str]:
+    """Get a list of string budget indices (e.g. 2023-01-01, 2023-04-01, etc) for the given current date and index timedelta."""
+    dates = pd.date_range(start=current_date, end=current_date + pd.Timedelta(years=duration_years), freq=index_offset)
+    return [date.strftime(DATE_FORMAT) for date in dates]
+
 @attrs.define
 class AssetBalance:
     """Represents a character's asset balance."""
     technical_capability: float = 0.0
-    capital: float = 0.0
+    capital: float = 0.0 # Unallocated capital
     human: float = 0.0
 
     def to_dict(self) -> Dict[str, float]:
@@ -66,6 +77,7 @@ class ResearchProject:
     name: str
     description: str
     target_completion_date: datetime.datetime
+    # original_budget: float # the budget the project was originally proposed for, for calculating overruns
     committed_budget: float  # per year
     committed_assets: AssetBalance
     status: str = "active"  # active, completed, cancelled
@@ -297,15 +309,6 @@ class ResearchStrategyPlayerProposedMove(PlayerProposedMove):
     def to_str(self) -> str:
         action_as_dict = self.to_dict()
         return pprint.pformat(action_as_dict, indent=1)
-
-
-@attrs.define
-class ResearchStrategyMoveCorrectionMessage(MoveCorrectionMessage):
-    """Move correction message for wargame simulation.
-    If the player requested any invalid options, this provides corrections.
-    """
-    error_message: str = ""
-    suggested_correction: Optional[ResearchStrategyPlayerProposedMove] = None
 
 
 class ResearchStrategyPlayer(Player):
@@ -705,16 +708,13 @@ What actions do you want to take this round? Respond with a JSON object as speci
         return move
 
     def correct_moves(
-            self, move_modifications: ResearchStrategyMoveCorrectionMessage
+            self, move_modifications: MoveCorrectionMessage
     ) -> ResearchStrategyPlayerProposedMove:
         """Correct moves based on gamemaster feedback."""
         logger.info(f"{self.name} - Proposed action failed: {move_modifications.error_message}")
 
-        if move_modifications.suggested_correction:
-            return move_modifications.suggested_correction
-
-        # If no suggested correction, return empty move
-        return ResearchStrategyPlayerProposedMove()
+        response = self._get_llm_response(f"Your proposed move described below was rejected, due to the following reason: {move_modifications.error_message}.  Please propose a single corrected move. {move_modifications.original_move.to_str()}")
+        return self._parse_response(response)
 
 
 @attrs.define
@@ -791,17 +791,14 @@ class ResearchStrategyGameMaster(GenericGameMaster):
         private_updates = self._create_private_updates_summary(player)
         
         for attempt in range(max_attempts):
-            if attempt > 1:
-                logger.warning("multiple attempts to validate move")
             # Get move from player (using async method)
-            import asyncio
             try:
                 loop = asyncio.get_event_loop()
             except RuntimeError:
                 loop = asyncio.new_event_loop()
                 asyncio.set_event_loop(loop)
             
-            moves = loop.run_until_complete(
+            moves_to_validate = loop.run_until_complete(
                 player.propose_actions_with_context(
                     game_state_summary=game_state_summary,
                     private_updates=private_updates,
@@ -810,38 +807,32 @@ class ResearchStrategyGameMaster(GenericGameMaster):
                 )
             )
             valid_moves = []
-            for i, move in enumerate(moves):
-                # TODO: check for empty moves only once/track in one place
+            current_move_index = 0
+            while len(moves_to_validate) > 0:
+                move = moves_to_validate[current_move_index]
                 if not move.action_type:
                     logger.debug("empty move")
+                    moves_to_validate.pop(current_move_index)
+                    current_move_index += 1
                     continue
 
                 validation_error = self._validate_move(player, move)
                 if validation_error is None:
+                    moves_to_validate.pop(current_move_index)
                     valid_moves.append(move)
                 else:
                     # Create correction message
-                    correction = ResearchStrategyMoveCorrectionMessage(
+                    correction = MoveCorrectionMessage(
+                        original_move=move,
                         error_message=validation_error
                     )
-                    # TODO: no correction happens here
-                    logger.debug("Corrected: "+ validation_error)
-                    # Get corrected move (synchronous)
+                    logger.debug("Requesting correction: "+ validation_error)
                     move = player.correct_moves(correction)
-            
-                    # Validate again
-                    # TODO: is this the right pattern? maybe just check once, or just correct?
-                    validation_error = self._validate_move(player, move)
-                    if validation_error is None:
-                        valid_moves.append(move)
-            
-                    else:
-                        logger.warning(f"{player.name} - Invalid move (attempt {attempt + 1}/{max_attempts}): {validation_error}")
-            if valid_moves:
-                return valid_moves
-        # If we get here, return the last move anyway (game will handle it)
-        logger.error(f"{player.name} - Failed to get valid move after {max_attempts} attempts")
-        return []
+                    moves_to_validate[current_move_index] = move
+                    current_move_index += 1
+            if len(moves_to_validate) == 0:
+                break
+        return valid_moves
     
     def _validate_move(self, player: ResearchStrategyPlayer, move: ResearchStrategyPlayerProposedMove) -> Optional[str]:
         """Validate a player's move. Returns error message if invalid, None if valid."""

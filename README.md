@@ -15,21 +15,7 @@ The platform enables:
 
 ### Core Components
 
-1. **Game State** (`ai4peace/core/game_state.py`): Manages all game state including character information, assets, budgets, and research projects
-2. **Agents** (`ai4peace/core/agent.py`): Autogen-based agents that make decisions using LLMs
-3. **Gamemaster** (`ai4peace/core/gamemaster.py`): Processes actions deterministically and generates summaries
-4. **Simulation** (`ai4peace/core/simulation.py`): Orchestrates the round-based game loop
-5. **Scenarios** (`ai4peace/scenarios/`): Specific game implementations
-
 ### Game Flow
-
-1. **Initialization**: Create game state, agents, and gamemaster
-2. **Round Loop**:
-   - Each agent receives context and takes actions
-   - Gamemaster processes all actions deterministically
-   - Game state is updated
-   - Summaries are generated for next round
-3. **Repeat** for specified number of rounds
 
 ## Installation
 
@@ -48,83 +34,15 @@ Currently runs with:
 ```
 poetry run python -m new_architecture_runner --api-key sk-{your OpenAI key} --scenario ai4peace.core_v2.research_strategy_scenario_basic_ai_race:BasicAIRaceScenario
 ```
-
-### Run the Drone Arms Control Simulation
-
-#### Basic Usage (OpenAI)
-
-```bash
-# Set your OpenAI API key
-export OPENAI_API_KEY="your-api-key-here"
-
-# Optionally set model and number of rounds
-export OPENAI_MODEL="gpt-4o-mini"  # or gpt-4, gpt-4-turbo, etc.
-export MAX_ROUNDS=3
-
-# Run the example simulation
-python example_drone_simulation.py
+Or on Novita:
+```
+poetry run python -m new_architecture_runner \
+--api-key $NOVITA_API_KEY
+--scenario ai4peace.core_v2.research_strategy_scenario_basic_ai_race:BasicAIRaceScenario
+--api-base https://api.novita.ai/openai \
+--model openai/gpt-oss-120b\ 
 ```
 
-#### Using Alternative Providers (e.g., Novita AI, Together AI)
-
-The script supports custom API endpoints for OpenAI-compatible providers:
-
-```bash
-# Example: Using Novita AI
-export OPENAI_API_KEY="your-novita-api-key"
-export OPENAI_API_BASE="https://api.novita.ai/v3"
-export OPENAI_MODEL="novita/Novita/Llama-3.1-405B-Instruct-Turbo"
-export MAX_ROUNDS=3
-
-python example_drone_simulation.py
-```
-
-#### Configuration Options
-
-- `OPENAI_API_KEY` (required): Your API key
-- `OPENAI_MODEL` (optional): Model name (default: "gpt-4o-mini")
-- `OPENAI_API_BASE` (optional): Custom API base URL for alternative providers
-- `OPENAI_REQUEST_TIMEOUT` (optional): Request timeout in seconds (default: 300)
-- `OPENAI_MAX_RETRIES` (optional): Maximum retry attempts (default: 3)
-- `MAX_ROUNDS` (optional): Number of simulation rounds (default: 3)
-
-### Using as a Package
-
-```python
-from ai4peace.core.game_state import GameState
-from ai4peace.core.agent import GameAgent
-from ai4peace.core.gamemaster import GameMaster
-from ai4peace.core.simulation import run_simulation_sync
-from ai4peace.scenarios.drone_arms_control import (
-    create_game_state,
-    get_game_context,
-)
-
-# Initialize components
-game_state = create_game_state()
-game_context = get_game_context()
-
-# Create agents (with your LLM client)
-agents = {}
-for name, char_state in game_state.characters.items():
-    agents[name] = GameAgent(
-        character_name=name,
-        character_state=char_state,
-        llm_client=your_llm_client,
-    )
-
-# Create gamemaster
-gamemaster = GameMaster(llm_client=your_llm_client)
-
-# Run simulation
-results = run_simulation_sync(
-    game_state=game_state,
-    agents=agents,
-    gamemaster=gamemaster,
-    game_context=game_context,
-    max_rounds=5,
-)
-```
 
 ## MVP: Create and run a new scenario
 

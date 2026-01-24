@@ -49,8 +49,9 @@ class PlayerProposedMove:
 
 @attrs.define
 class MoveCorrectionMessage:
-    """Message from GameMaster to Player correcting or adjusting proposed moves"""
-    pass
+    original_move: PlayerProposedMove
+    error_message: str
+    suggested_correction: Optional[PlayerProposedMove] = None
 
 
 class Player(abc.ABC):

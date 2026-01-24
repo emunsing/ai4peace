@@ -151,11 +151,11 @@ class BasicAIRaceScenario(GameScenario):
 
     def get_game_context(self) -> str:
         """Get the shared game context description."""
-        return """# Basic AI Race Simulation: Three Frontier AI Labs
+        return """# Three Frontier Research Labs Building Artificial Intelligence"
 
 ## Background
 
-This simulation models the current AI race via three leading frontier labs, who make decisions about research projects (safety, capabilities, etc).
+This game models the current AI ecosystem via three leading frontier labs, who make decisions about what research projects to pursue as they develop AI.
 
 Background (Leading to 2024)
 
@@ -225,6 +225,7 @@ This is an open-ended simulation. Success is measured by:
                 "2025": 5200000000.0,
             },
             projects=[],
+            
         )
 
         public_view = PublicView(

@@ -1,11 +1,14 @@
+import datetime
 import click
 import json
 import logging
 from typing import Optional
 from ai4peace.core.simulation_runner import load_scenario_class, create_llm_client
 from ai4peace.core_v2.new_architecture_draft import GameScenario
+from ai4peace.core.utils import setup_logging
 
 logger = logging.getLogger(__name__)
+logging.getLogger("httpx").setLevel(logging.WARNING)
 
 @click.command()
 @click.option(
@@ -31,6 +34,12 @@ logger = logging.getLogger(__name__)
     help="Custom API base URL for alternative providers (or set OPENAI_API_BASE env var)",
 )
 @click.option(
+    "--log-file",
+    default=f"transcript_{datetime.datetime.now().replace(microsecond=0).isoformat()}.jsonl",
+    type=str,
+    help="Save the game transcript to this file",
+)
+@click.option(
     "--json-kwargs",
     default='{"n_players": 3}',
     type=str,
@@ -41,6 +50,7 @@ def main(
         scenario: str,
         model: str,
         api_base: Optional[str],
+        log_file: str,
         json_kwargs: str,
 ):
     """Run a single game simulation.
@@ -52,11 +62,7 @@ def main(
         python -m ai4peace.core.new_architecture_draft --api-key $OPENAI_API_KEY --json-kwargs '{"n_players": 3, "random_seed": 42}'
     """
     # Set up logging
-    logging.basicConfig(
-        level=logging.INFO,
-        format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
-    )
-
+    setup_logging(log_file=log_file) 
     try:
         # Load scenario
         scenario_class = load_scenario_class(scenario, must_subclass=GameScenario)

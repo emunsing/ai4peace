@@ -1,5 +1,5 @@
 """Utility functions for game state display and logging."""
-
+import json
 import logging
 from typing import Optional
 
@@ -8,6 +8,31 @@ from .game_state import GameState
 
 logger = logging.getLogger(__name__)
 
+def setup_logging(verbose: bool = False, log_file = "game_transcript.jsonl"):
+    log_level = logging.DEBUG if verbose else logging.INFO
+    logging.basicConfig(
+        level=log_level,
+        format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+    )
+    transcript_logger = logging.getLogger('transcript')
+    transcript_logger.setLevel(logging.INFO)
+
+    exp_handler = logging.FileHandler(log_file)
+    class JSONLFormatter(logging.Formatter):
+        def format(self, record):
+            return json.dumps(record.msg)
+    exp_handler.setFormatter(JSONLFormatter())
+    transcript_logger.addHandler(exp_handler)
+    transcript_logger.propagate = False
+
+    # turn down logging volume of these packages
+    logging.getLogger("autogen_core.events").setLevel(logging.WARNING)
+    logging.getLogger("httpx").setLevel(logging.WARNING)
+    return transcript_logger
+
+def get_transcript_logger():
+    """Get the experiment logger (call after setup_logging)"""
+    return logging.getLogger('transcript')
 
 def print_character_states(
     game_state: GameState,

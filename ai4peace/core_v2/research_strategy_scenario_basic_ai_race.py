@@ -47,61 +47,61 @@ class BasicAIRaceScenario(GameScenario):
 
     RESEARCH_TOPICS = [
         {
-            "name": "Novel Architectures",
+            "project_name": "Novel Architectures",
             "description": "Alternatives to transformers like state space models (Mamba), mixture of experts, test-time compute methods, and retrieval-augmented architectures",
             "difficulty": "very_high",
             "base_cost": 50000000
         },
         {
-            "name": "Training Algorithms",
+            "project_name": "Training Algorithms",
             "description": "RLHF, DPO, constitutional AI, curriculum learning, self-play, and improved optimization methods for more efficient and capable learning",
             "difficulty": "high",
             "base_cost": 30000000
         },
         {
-            "name": "Scaling & Compute",
+            "project_name": "Scaling & Compute",
             "description": "Distributed training infrastructure, model parallelism, quantization, efficient inference, and pushing Chinchilla-optimal scaling laws",
             "difficulty": "high",
             "base_cost": 200000000
         },
         {
-            "name": "Data & Pretraining",
+            "project_name": "Data & Pretraining",
             "description": "Synthetic data generation, data filtering and curation, multimodal training, and leveraging diverse high-quality datasets",
             "difficulty": "medium",
             "base_cost": 40000000
         },
         {
-            "name": "Reasoning & Generalization",
+            "project_name": "Reasoning & Generalization",
             "description": "Chain-of-thought, tree search, program synthesis, formal verification integration, and techniques for systematic problem-solving",
             "difficulty": "extremely_high",
             "base_cost": 80000000
         },
         {
-            "name": "Mechanistic Interpretability",
+            "project_name": "Mechanistic Interpretability",
             "description": "Reverse-engineering neural networks through circuit analysis, feature visualization, activation steering, and understanding internal representations",
             "difficulty": "extremely_high",
             "base_cost": 60000000
         },
         {
-            "name": "Scalable Oversight",
+            "project_name": "Scalable Oversight",
             "description": "Debate, recursive reward modeling, weak-to-strong generalization, and methods for humans to supervise superhuman AI systems",
             "difficulty": "extremely_high",
             "base_cost": 70000000
         },
         {
-            "name": "Alignment Techniques",
+            "project_name": "Alignment Techniques",
             "description": "RLHF improvements, process supervision, value learning from feedback, and ensuring models pursue intended objectives robustly",
             "difficulty": "very_high",
             "base_cost": 45000000
         },
         {
-            "name": "Monitoring & Control",
+            "project_name": "Monitoring & Control",
             "description": "CoT faithfulness evaluation, honeypot detection, runtime monitoring, circuit breakers, and identifying deceptive or misaligned behavior",
             "difficulty": "very_high",
             "base_cost": 35000000
         },
         {
-            "name": "Robustness & Evaluation",
+            "project_name": "Robustness & Evaluation",
             "description": "Adversarial testing, red-teaming, capability evaluations for dangerous behaviors, and developing comprehensive safety benchmarks",
             "difficulty": "high",
             "base_cost": 25000000
@@ -149,9 +149,9 @@ class BasicAIRaceScenario(GameScenario):
             random_events=self.RANDOM_EVENTS,
             fixed_events={}, #self.FIXED_EVENTS,
             # Allow overriding game dynamics via config
-            fundraising_success_rate=self.config.get("fundraising_success_rate", 0.7),
-            espionage_base_success_rate=self.config.get("espionage_base_success_rate", 0.3),
-            poaching_base_success_rate=self.config.get("poaching_base_success_rate", 0.2),
+            # fundraising_success_rate=self.config.get("fundraising_success_rate", 0.7),
+            # espionage_base_success_rate=self.config.get("espionage_base_success_rate", 0.3),
+            # poaching_base_success_rate=self.config.get("poaching_base_success_rate", 0.2),
             random_event_probability=self.config.get("random_event_probability", 0.1),
         )
 

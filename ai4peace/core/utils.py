@@ -64,12 +64,12 @@ def print_character_states(
         
         message += f"  Active Projects: {len(active_projects)}\n"
         for project in active_projects:
-            message += f"    - {project.name}: {project.progress*100:.0f}% complete\n"
+            message += f"    - {project.project_name}: {project.progress*100:.0f}% complete\n"
         
         if completed_projects:
             message += f"  Completed Projects: {len(completed_projects)}\n"
             for project in completed_projects:
-                message += f"    - {project.name}\n"
+                message += f"    - {project.project_name}\n"
     
     logger.log(log_level, message)
 

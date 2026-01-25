@@ -2,14 +2,18 @@
 
 import random
 from shutil import move
+import abc
 from .new_architecture_draft import PlayerStateUpdates, GamemasterUpdateMessage
 
 
 from .new_architecture_draft import GenericGameMaster
 
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, TYPE_CHECKING
 from enum import Enum
 import attrs
+
+if TYPE_CHECKING:
+    from typing import Any
 
 
 import json
@@ -222,36 +226,858 @@ class ActionType(Enum):
 
 
 @attrs.define
-class ResearchProjectAction:
-    """Details for creating a research project."""
+class Action(abc.ABC):
+    """Base class for all actions in the game."""
+    initiating_character_name: str
+
+    @property
+    @abc.abstractmethod
+    def action_type(self) -> ActionType:
+        """Return the type of this action."""
+        pass
+
+    def validate_action(self, game_state: ResearchStrategyGameState, players: list["ResearchStrategyPlayer"], gamemaster: "ResearchStrategyGameMaster") -> Optional[str]:
+        """Validate the action is valid. Return None if valid, otherwise return an error message."""
+        # Basic validation: check if player exists
+        player = self._get_player_by_name(self.initiating_character_name, players)
+        if not player:
+            return f"Player '{self.initiating_character_name}' not found"
+        return None
+
+    def _get_player_by_name(self, name: str, players: list["ResearchStrategyPlayer"]) -> Optional["ResearchStrategyPlayer"]:
+        """Helper to get player by name."""
+        for player in players:
+            if player.name == name:
+                return player
+        return None
+
+    @classmethod
+    @abc.abstractmethod
+    def handle_actions(cls, actions_to_process: list["Action"], game_state: ResearchStrategyGameState, players: list["ResearchStrategyPlayer"], gamemaster: "ResearchStrategyGameMaster") -> Dict[str, ResearchStrategyPlayerStateUpdates]:
+        """Handle all actions of this type for a given round.
+
+        Updates the game state and returns player state updates.
+        This allows for batch processing of actions (e.g., clearing markets, resolving competition).
+        """
+        pass
+
+
+# Concrete Action subclasses
+
+@attrs.define
+class FundraiseAction(Action):
+    """Action to fundraise for additional budget."""
+    amount: float
+    description: Optional[str] = None
+
+    # Action-specific parameters (class attributes, not init parameters)
+    success_rate: float = 0.7
+    efficiency: float = 0.8  # Percentage of requested amount received
+
+    @property
+    def action_type(self) -> ActionType:
+        return ActionType.FUNDRAISE
+
+    def validate_action(self, game_state: ResearchStrategyGameState, players: list["ResearchStrategyPlayer"], gamemaster: "ResearchStrategyGameMaster") -> Optional[str]:
+        error = super().validate_action(game_state, players, gamemaster)
+        if error:
+            return error
+
+        if not self.amount or self.amount <= 0:
+            return "Fundraising requires positive amount"
+        return None
+
+    @classmethod
+    def _process_single_action(cls, action: "FundraiseAction", player_state: ResearchStrategyPlayerState, game_state: ResearchStrategyGameState, random_gen: random.Random) -> str:
+        """Process a single fundraising action."""
+        success = random_gen.random() < action.success_rate
+
+        if success:
+            year = str(game_state.current_date.year)
+            current_budget = player_state.private_info.budget.get(year, 0.0)
+            amount_received = action.amount * action.efficiency
+            player_state.private_info.budget[year] = current_budget + amount_received
+            return f"Success:Fundraised ${amount_received:,.0f}"
+        else:
+            return f"Fail:Fundraising attempt for ${action.amount:,.0f} was unsuccessful"
+
+    @classmethod
+    def handle_actions(cls, actions_to_process: list["Action"], game_state: ResearchStrategyGameState, players: list["ResearchStrategyPlayer"], gamemaster: "ResearchStrategyGameMaster") -> Dict[str, ResearchStrategyPlayerStateUpdates]:
+        """Process all fundraising actions."""
+        updates = {}
+        for action in actions_to_process:
+            if not isinstance(action, FundraiseAction):
+                continue
+
+            player = action._get_player_by_name(action.initiating_character_name, players)
+            if not player:
+                continue
+
+            if player.name not in updates:
+                updates[player.name] = ResearchStrategyPlayerStateUpdates()
+
+            result = cls._process_single_action(action, player.attributes, game_state, gamemaster._random)
+            updates[player.name].action_results.append(result)
+
+        return updates
+
+
+@attrs.define
+class CreateResearchProjectAction(Action):
+    """Action to create a new research project."""
     name: str
     description: str
     target_completion_date: str  # ISO format date
     annual_budget: float
     required_assets: Dict[str, float]  # technical_capability, capital, human
 
+    @property
+    def action_type(self) -> ActionType:
+        return ActionType.CREATE_RESEARCH_PROJECT
+
+    def validate_action(self, game_state: ResearchStrategyGameState, players: list["ResearchStrategyPlayer"], gamemaster: "ResearchStrategyGameMaster") -> Optional[str]:
+        error = super().validate_action(game_state, players, gamemaster)
+        if error:
+            return error
+
+        player = self._get_player_by_name(self.initiating_character_name, players)
+        if not player:
+            return f"Player '{self.initiating_character_name}' not found"
+
+        player_state = player.attributes
+
+        # Check resources
+        required = AssetBalance(
+            technical_capability=self.required_assets.get("technical_capability", 0),
+            capital=self.required_assets.get("capital", 0),
+            human=self.required_assets.get("human", 0),
+        )
+
+        current = player_state.private_info.true_asset_balance
+        if (current.technical_capability < required.technical_capability or
+            current.capital < required.capital or
+            current.human < required.human):
+            return f"Insufficient resources for research project '{self.name}'"
+
+        # Check budget
+        year = str(game_state.current_date.year)
+        current_budget = player_state.private_info.budget.get(year, 0.0)
+        if current_budget < self.annual_budget:
+            return f"Insufficient budget for research project '{self.name}'"
+
+        return None
+
+    @classmethod
+    def _process_single_action(cls, action: "CreateResearchProjectAction", player_state: ResearchStrategyPlayerState, game_state: ResearchStrategyGameState, assess_realism_callback) -> str:
+        """Process a single research project creation action."""
+        # Check if character has sufficient resources
+        required = AssetBalance(
+            technical_capability=action.required_assets.get("technical_capability", 0),
+            capital=action.required_assets.get("capital", 0),
+            human=action.required_assets.get("human", 0),
+        )
+
+        current = player_state.private_info.true_asset_balance
+
+        if (current.technical_capability < required.technical_capability or
+            current.capital < required.capital or
+            current.human < required.human):
+            return f"Fail:Insufficient resources to start research project '{action.name}'"
+
+        # Check budget
+        year = str(game_state.current_date.year)
+        current_budget = player_state.private_info.budget.get(year, 0.0)
+        if current_budget < action.annual_budget:
+            return f"Fail:Insufficient budget for research project '{action.name}'"
+
+        # Create project
+        try:
+            target_date = datetime.datetime.fromisoformat(action.target_completion_date)
+        except ValueError:
+            target_date = game_state.current_date + datetime.timedelta(days=365)
+
+        project = ResearchProject(
+            name=action.name,
+            description=action.description,
+            target_completion_date=target_date,
+            committed_budget=action.annual_budget,
+            committed_assets=required,
+            status="active",
+            progress=0.0,
+        )
+
+        # Assess realism (using callback to gamemaster method)
+        if assess_realism_callback:
+            project.realistic_goals = assess_realism_callback(project, player_state)
+
+        # Deduct resources
+        player_state.private_info.true_asset_balance = current.subtract(required)
+        player_state.private_info.budget[year] = current_budget - action.annual_budget
+
+        # Add project
+        player_state.private_info.projects.append(project)
+
+        return f"Success:Created research project '{action.name}'"
+
+    @classmethod
+    def handle_actions(cls, actions_to_process: list["Action"], game_state: ResearchStrategyGameState, players: list["ResearchStrategyPlayer"], gamemaster: "ResearchStrategyGameMaster") -> Dict[str, ResearchStrategyPlayerStateUpdates]:
+        """Process all research project creation actions."""
+        updates = {}
+        for action in actions_to_process:
+            if not isinstance(action, CreateResearchProjectAction):
+                continue
+
+            player = action._get_player_by_name(action.initiating_character_name, players)
+            if not player:
+                continue
+
+            if player.name not in updates:
+                updates[player.name] = ResearchStrategyPlayerStateUpdates()
+
+            result = cls._process_single_action(action, player.attributes, game_state, gamemaster._assess_research_realism)
+            updates[player.name].action_results.append(result)
+
+        return updates
+
 
 @attrs.define
-class EspionageAction:
-    """Details for espionage action."""
+class CancelResearchProjectAction(Action):
+    """Action to cancel an active research project."""
+    project_name: str
+
+    # Action-specific parameters (class attributes)
+    refund_rate: float = 0.5  # Percentage of resources refunded when cancelling
+
+    @property
+    def action_type(self) -> ActionType:
+        return ActionType.CANCEL_RESEARCH_PROJECT
+
+    def validate_action(self, game_state: ResearchStrategyGameState, players: list["ResearchStrategyPlayer"], gamemaster: "ResearchStrategyGameMaster") -> Optional[str]:
+        error = super().validate_action(game_state, players, gamemaster)
+        if error:
+            return error
+
+        if not self.project_name:
+            return "Cancel action requires project name"
+
+        player = self._get_player_by_name(self.initiating_character_name, players)
+        if not player:
+            return f"Player '{self.initiating_character_name}' not found"
+
+        # Check if project exists and is active
+        found = False
+        for project in player.attributes.private_info.projects:
+            if project.name == self.project_name and project.status == "active":
+                found = True
+                break
+        if not found:
+            return f"Active research project '{self.project_name}' not found"
+
+        return None
+
+    @classmethod
+    def _process_single_action(cls, action: "CancelResearchProjectAction", player_state: ResearchStrategyPlayerState, game_state: ResearchStrategyGameState) -> str:
+        """Process a single research project cancellation action."""
+        # Find and cancel project
+        for project in player_state.private_info.projects:
+            if project.name == action.project_name and project.status == "active":
+                project.status = "cancelled"
+                # Refund some resources (not all)
+                refund = AssetBalance(
+                    technical_capability=project.committed_assets.technical_capability * action.refund_rate,
+                    capital=project.committed_assets.capital * action.refund_rate,
+                    human=project.committed_assets.human * action.refund_rate,
+                )
+                player_state.private_info.true_asset_balance = (
+                    player_state.private_info.true_asset_balance.add(refund)
+                )
+                return f"Success:Cancelled research project '{action.project_name}'"
+
+        return f"Fail:Could not find active research project '{action.project_name}'"
+
+    @classmethod
+    def handle_actions(cls, actions_to_process: list["Action"], game_state: ResearchStrategyGameState, players: list["ResearchStrategyPlayer"], gamemaster: "ResearchStrategyGameMaster") -> Dict[str, ResearchStrategyPlayerStateUpdates]:
+        """Process all research project cancellation actions."""
+        updates = {}
+        for action in actions_to_process:
+            if not isinstance(action, CancelResearchProjectAction):
+                continue
+
+            player = action._get_player_by_name(action.initiating_character_name, players)
+            if not player:
+                continue
+
+            if player.name not in updates:
+                updates[player.name] = ResearchStrategyPlayerStateUpdates()
+
+            result = cls._process_single_action(action, player.attributes, game_state)
+            updates[player.name].action_results.append(result)
+
+        return updates
+
+
+@attrs.define
+class InvestCapitalAction(Action):
+    """Action to invest budget into capital assets."""
+    amount: float
+
+    # Action-specific parameters (class attributes)
+    efficiency: float = 0.9  # Budget to capital conversion
+
+    @property
+    def action_type(self) -> ActionType:
+        return ActionType.INVEST_CAPITAL
+
+    def validate_action(self, game_state: ResearchStrategyGameState, players: list["ResearchStrategyPlayer"], gamemaster: "ResearchStrategyGameMaster") -> Optional[str]:
+        error = super().validate_action(game_state, players, gamemaster)
+        if error:
+            return error
+
+        if not self.amount or self.amount <= 0:
+            return "Capital investment requires positive amount"
+
+        player = self._get_player_by_name(self.initiating_character_name, players)
+        if not player:
+            return f"Player '{self.initiating_character_name}' not found"
+
+        year = str(game_state.current_date.year)
+        budget = player.attributes.private_info.budget.get(year, 0.0)
+        if budget < self.amount:
+            return f"Insufficient budget for capital investment"
+
+        return None
+
+    @classmethod
+    def _process_single_action(cls, action: "InvestCapitalAction", player_state: ResearchStrategyPlayerState, game_state: ResearchStrategyGameState) -> str:
+        """Process a single capital investment action."""
+        year = str(game_state.current_date.year)
+        budget = player_state.private_info.budget.get(year, 0.0)
+        if budget < action.amount:
+            return f"Fail:Insufficient budget for capital investment of ${action.amount:,.0f}"
+
+        # Invest: convert budget to capital assets
+        player_state.private_info.budget[year] = budget - action.amount
+        capital_gained = action.amount * action.efficiency
+        player_state.private_info.true_asset_balance.capital += capital_gained
+
+        return f"Success:Invested ${action.amount:,.0f} in capital improvements"
+
+    @classmethod
+    def handle_actions(cls, actions_to_process: list["Action"], game_state: ResearchStrategyGameState, players: list["ResearchStrategyPlayer"], gamemaster: "ResearchStrategyGameMaster") -> Dict[str, ResearchStrategyPlayerStateUpdates]:
+        """Process all capital investment actions."""
+        updates = {}
+        for action in actions_to_process:
+            if not isinstance(action, InvestCapitalAction):
+                continue
+
+            player = action._get_player_by_name(action.initiating_character_name, players)
+            if not player:
+                continue
+
+            if player.name not in updates:
+                updates[player.name] = ResearchStrategyPlayerStateUpdates()
+
+            result = cls._process_single_action(action, player.attributes, game_state)
+            updates[player.name].action_results.append(result)
+
+        return updates
+
+
+@attrs.define
+class SellCapitalAction(Action):
+    """Action to sell capital assets for budget."""
+    amount: float
+
+    # Action-specific parameters (class attributes)
+    efficiency: float = 0.7  # Capital to budget conversion
+
+    @property
+    def action_type(self) -> ActionType:
+        return ActionType.SELL_CAPITAL
+
+    def validate_action(self, game_state: ResearchStrategyGameState, players: list["ResearchStrategyPlayer"], gamemaster: "ResearchStrategyGameMaster") -> Optional[str]:
+        error = super().validate_action(game_state, players, gamemaster)
+        if error:
+            return error
+
+        if not self.amount or self.amount <= 0:
+            return "Sell capital requires positive amount"
+
+        player = self._get_player_by_name(self.initiating_character_name, players)
+        if not player:
+            return f"Player '{self.initiating_character_name}' not found"
+
+        if player.attributes.private_info.true_asset_balance.capital < self.amount:
+            return f"Insufficient capital to sell"
+
+        return None
+
+    @classmethod
+    def _process_single_action(cls, action: "SellCapitalAction", player_state: ResearchStrategyPlayerState, game_state: ResearchStrategyGameState) -> str:
+        """Process a single capital sale action."""
+        if player_state.private_info.true_asset_balance.capital < action.amount:
+            return f"Fail:Insufficient capital to sell ${action.amount:,.0f}"
+
+        # Sell: convert capital to budget
+        player_state.private_info.true_asset_balance.capital -= action.amount
+        year = str(game_state.current_date.year)
+        current_budget = player_state.private_info.budget.get(year, 0.0)
+        budget_gained = action.amount * action.efficiency
+        player_state.private_info.budget[year] = current_budget + budget_gained
+
+        return f"Success:Sold ${action.amount:,.0f} in capital assets"
+
+    @classmethod
+    def handle_actions(cls, actions_to_process: list["Action"], game_state: ResearchStrategyGameState, players: list["ResearchStrategyPlayer"], gamemaster: "ResearchStrategyGameMaster") -> Dict[str, ResearchStrategyPlayerStateUpdates]:
+        """Process all capital sale actions."""
+        updates = {}
+        for action in actions_to_process:
+            if not isinstance(action, SellCapitalAction):
+                continue
+
+            player = action._get_player_by_name(action.initiating_character_name, players)
+            if not player:
+                continue
+
+            if player.name not in updates:
+                updates[player.name] = ResearchStrategyPlayerStateUpdates()
+
+            result = cls._process_single_action(action, player.attributes, game_state)
+            updates[player.name].action_results.append(result)
+
+        return updates
+
+
+@attrs.define
+class EspionageAction(Action):
+    """Action to conduct espionage on another player."""
     target_character: str
     budget: float
     focus: str  # What information to try to gather
 
+    # Action-specific parameters (class attributes)
+    base_success_rate: float = 0.3
+    budget_scaling: float = 1000000.0  # Budget per unit of success rate
+    max_success_rate: float = 0.8
+
+    @property
+    def action_type(self) -> ActionType:
+        return ActionType.ESPIONAGE
+
+    def validate_action(self, game_state: ResearchStrategyGameState, players: list["ResearchStrategyPlayer"], gamemaster: "ResearchStrategyGameMaster") -> Optional[str]:
+        error = super().validate_action(game_state, players, gamemaster)
+        if error:
+            return error
+
+        if not self.target_character:
+            return "Espionage requires target character"
+
+        # Check if target exists
+        target_exists = any(p.name == self.target_character for p in players)
+        if not target_exists:
+            return f"Target character '{self.target_character}' not found"
+
+        if self.budget <= 0:
+            return "Espionage requires positive budget"
+
+        player = self._get_player_by_name(self.initiating_character_name, players)
+        if not player:
+            return f"Player '{self.initiating_character_name}' not found"
+
+        year = str(game_state.current_date.year)
+        budget = player.attributes.private_info.budget.get(year, 0.0)
+        if budget < self.budget:
+            return "Insufficient budget for espionage"
+
+        return None
+
+    @classmethod
+    def _process_single_action(cls, action: "EspionageAction", player_state: ResearchStrategyPlayerState, game_state: ResearchStrategyGameState, players: list["ResearchStrategyPlayer"], random_gen: random.Random) -> str:
+        """Process a single espionage action."""
+        target_player = None
+        for p in players:
+            if p.name == action.target_character:
+                target_player = p
+                break
+
+        if not target_player:
+            return f"Fail:Espionage target '{action.target_character}' not found"
+
+        # Check budget
+        year = str(game_state.current_date.year)
+        budget = player_state.private_info.budget.get(year, 0.0)
+        if budget < action.budget:
+            return "Fail:Insufficient budget for espionage"
+
+        # Deduct budget
+        player_state.private_info.budget[year] = budget - action.budget
+
+        # Store espionage attempt (results processed later)
+        success_prob = min(
+            action.base_success_rate + (action.budget / action.budget_scaling),
+            action.max_success_rate
+        )
+        success = random_gen.random() < success_prob
+
+        player_state.private_info.espionage.append({
+            "target": action.target_character,
+            "focus": action.focus,
+            "budget": action.budget,
+            "success": success,
+            "round": game_state.round_number,
+        })
+        logger.debug(f"Espionage: {player_state.private_info.espionage}")
+
+        return f"{'Success' if success else 'Fail'}:Conducted espionage on {action.target_character}"
+
+    @classmethod
+    def handle_actions(cls, actions_to_process: list["Action"], game_state: ResearchStrategyGameState, players: list["ResearchStrategyPlayer"], gamemaster: "ResearchStrategyGameMaster") -> Dict[str, ResearchStrategyPlayerStateUpdates]:
+        """Process all espionage actions."""
+        updates = {}
+        for action in actions_to_process:
+            if not isinstance(action, EspionageAction):
+                continue
+
+            player = action._get_player_by_name(action.initiating_character_name, players)
+            if not player:
+                continue
+
+            if player.name not in updates:
+                updates[player.name] = ResearchStrategyPlayerStateUpdates()
+
+            result = cls._process_single_action(action, player.attributes, game_state, players, gamemaster._random)
+            updates[player.name].action_results.append(result)
+
+        return updates
+
 
 @attrs.define
-class MessageAction:
-    """Details for sending a private message."""
+class PoachTalentAction(Action):
+    """Action to poach talent from another player."""
+    target: str
+    budget: float
+
+    # Action-specific parameters (class attributes)
+    base_success_rate: float = 0.2
+    budget_scaling: float = 500000.0
+    max_success_rate: float = 0.6
+    transfer_rate: float = 0.1  # Percentage of target's human resources transferred
+    max_transfer: float = 5.0  # Maximum human resources that can be transferred
+
+    @property
+    def action_type(self) -> ActionType:
+        return ActionType.POACH_TALENT
+
+    def validate_action(self, game_state: ResearchStrategyGameState, players: list["ResearchStrategyPlayer"], gamemaster: "ResearchStrategyGameMaster") -> Optional[str]:
+        error = super().validate_action(game_state, players, gamemaster)
+        if error:
+            return error
+
+        if not self.target:
+            return "Poaching requires target character"
+
+        if not self.budget or self.budget <= 0:
+            return "Poaching requires positive budget"
+
+        target_exists = any(p.name == self.target for p in players)
+        if not target_exists:
+            return f"Target character '{self.target}' not found"
+
+        player = self._get_player_by_name(self.initiating_character_name, players)
+        if not player:
+            return f"Player '{self.initiating_character_name}' not found"
+
+        year = str(game_state.current_date.year)
+        budget = player.attributes.private_info.budget.get(year, 0.0)
+        if budget < self.budget:
+            return "Insufficient budget for poaching"
+
+        return None
+
+    @classmethod
+    def _process_single_action(cls, action: "PoachTalentAction", player_state: ResearchStrategyPlayerState, game_state: ResearchStrategyGameState, players: list["ResearchStrategyPlayer"], random_gen: random.Random) -> str:
+        """Process a single talent poaching action."""
+        target_player = None
+        for p in players:
+            if p.name == action.target:
+                target_player = p
+                break
+
+        if not target_player:
+            return f"Fail:target '{action.target}' not found"
+
+        # Check budget
+        year = str(game_state.current_date.year)
+        budget = player_state.private_info.budget.get(year, 0.0)
+        if budget < action.budget:
+            return "Fail:Insufficient budget for poaching"
+
+        # Deduct budget
+        player_state.private_info.budget[year] = budget - action.budget
+
+        # Determine success
+        success_prob = min(
+            action.base_success_rate + (action.budget / action.budget_scaling),
+            action.max_success_rate
+        )
+        success = random_gen.random() < success_prob
+
+        if success:
+            # Transfer some human resources
+            transfer_amount = min(
+                target_player.attributes.private_info.true_asset_balance.human * action.transfer_rate,
+                action.max_transfer
+            )
+            target_player.attributes.private_info.true_asset_balance.human -= transfer_amount
+            player_state.private_info.true_asset_balance.human += transfer_amount
+            return f"Success:Poached talent from {action.target} (gained {transfer_amount:.1f} human resources)"
+        else:
+            return f"Fail:Poaching attempt on {action.target}"
+
+    @classmethod
+    def handle_actions(cls, actions_to_process: list["Action"], game_state: ResearchStrategyGameState, players: list["ResearchStrategyPlayer"], gamemaster: "ResearchStrategyGameMaster") -> Dict[str, ResearchStrategyPlayerStateUpdates]:
+        """Process all talent poaching actions."""
+        updates = {}
+        for action in actions_to_process:
+            if not isinstance(action, PoachTalentAction):
+                continue
+
+            player = action._get_player_by_name(action.initiating_character_name, players)
+            if not player:
+                continue
+
+            if player.name not in updates:
+                updates[player.name] = ResearchStrategyPlayerStateUpdates()
+
+            result = cls._process_single_action(action, player.attributes, game_state, players, gamemaster._random)
+            updates[player.name].action_results.append(result)
+
+        return updates
+
+
+@attrs.define
+class LobbyAction(Action):
+    """Action to lobby for policy changes."""
+    message: str
+    budget: float
+
+    # Action-specific parameters (class attributes)
+    backfire_rate: float = 0.1
+
+    @property
+    def action_type(self) -> ActionType:
+        return ActionType.LOBBY
+
+    def validate_action(self, game_state: ResearchStrategyGameState, players: list["ResearchStrategyPlayer"], gamemaster: "ResearchStrategyGameMaster") -> Optional[str]:
+        error = super().validate_action(game_state, players, gamemaster)
+        if error:
+            return error
+
+        if not self.budget or self.budget <= 0:
+            return "Lobbying requires positive budget"
+
+        player = self._get_player_by_name(self.initiating_character_name, players)
+        if not player:
+            return f"Player '{self.initiating_character_name}' not found"
+
+        year = str(game_state.current_date.year)
+        budget = player.attributes.private_info.budget.get(year, 0.0)
+        if budget < self.budget:
+            return "Insufficient budget for lobbying"
+
+        return None
+
+    @classmethod
+    def _process_single_action(cls, action: "LobbyAction", player_state: ResearchStrategyPlayerState, game_state: ResearchStrategyGameState, random_gen: random.Random) -> str:
+        """Process a single lobbying action."""
+        year = str(game_state.current_date.year)
+        budget = player_state.private_info.budget.get(year, 0.0)
+        if budget < action.budget:
+            return "Fail:Insufficient budget for lobbying"
+
+        player_state.private_info.budget[year] = budget - action.budget
+
+        # Lobbying may backfire
+        if random_gen.random() < action.backfire_rate:
+            return f"Fail:Lobbying campaign backfired: {action.message}"
+        else:
+            return f"Success:Launched lobbying campaign: {action.message}"
+
+    @classmethod
+    def handle_actions(cls, actions_to_process: list["Action"], game_state: ResearchStrategyGameState, players: list["ResearchStrategyPlayer"], gamemaster: "ResearchStrategyGameMaster") -> Dict[str, ResearchStrategyPlayerStateUpdates]:
+        """Process all lobbying actions."""
+        updates = {}
+        for action in actions_to_process:
+            if not isinstance(action, LobbyAction):
+                continue
+
+            player = action._get_player_by_name(action.initiating_character_name, players)
+            if not player:
+                continue
+
+            if player.name not in updates:
+                updates[player.name] = ResearchStrategyPlayerStateUpdates()
+
+            result = cls._process_single_action(action, player.attributes, game_state, gamemaster._random)
+            updates[player.name].action_results.append(result)
+
+        return updates
+
+
+@attrs.define
+class MarketingAction(Action):
+    """Action to launch a marketing campaign."""
+    message: str
+    budget: float
+
+    @property
+    def action_type(self) -> ActionType:
+        return ActionType.MARKETING
+
+    def validate_action(self, game_state: ResearchStrategyGameState, players: list["ResearchStrategyPlayer"], gamemaster: "ResearchStrategyGameMaster") -> Optional[str]:
+        error = super().validate_action(game_state, players, gamemaster)
+        if error:
+            return error
+
+        if not self.budget or self.budget <= 0:
+            return "Marketing requires positive budget"
+
+        player = self._get_player_by_name(self.initiating_character_name, players)
+        if not player:
+            return f"Player '{self.initiating_character_name}' not found"
+
+        year = str(game_state.current_date.year)
+        budget = player.attributes.private_info.budget.get(year, 0.0)
+        if budget < self.budget:
+            return "Insufficient budget for marketing"
+
+        return None
+
+    @classmethod
+    def _process_single_action(cls, action: "MarketingAction", player_state: ResearchStrategyPlayerState, game_state: ResearchStrategyGameState) -> str:
+        """Process a single marketing action."""
+        year = str(game_state.current_date.year)
+        budget = player_state.private_info.budget.get(year, 0.0)
+        if budget < action.budget:
+            return "Fail:Insufficient budget for marketing"
+
+        player_state.private_info.budget[year] = budget - action.budget
+        return f"Success:Launched marketing campaign: {action.message}"
+
+    @classmethod
+    def handle_actions(cls, actions_to_process: list["Action"], game_state: ResearchStrategyGameState, players: list["ResearchStrategyPlayer"], gamemaster: "ResearchStrategyGameMaster") -> Dict[str, ResearchStrategyPlayerStateUpdates]:
+        """Process all marketing actions."""
+        updates = {}
+        for action in actions_to_process:
+            if not isinstance(action, MarketingAction):
+                continue
+
+            player = action._get_player_by_name(action.initiating_character_name, players)
+            if not player:
+                continue
+
+            if player.name not in updates:
+                updates[player.name] = ResearchStrategyPlayerStateUpdates()
+
+            result = cls._process_single_action(action, player.attributes, game_state)
+            updates[player.name].action_results.append(result)
+
+        return updates
+
+
+@attrs.define
+class MessageAction(Action):
+    """Action to send a private message to another player."""
     to_character: str
     content: str
+
+    @property
+    def action_type(self) -> ActionType:
+        return ActionType.MESSAGE
+
+    def validate_action(self, game_state: ResearchStrategyGameState, players: list["ResearchStrategyPlayer"], gamemaster: "ResearchStrategyGameMaster") -> Optional[str]:
+        error = super().validate_action(game_state, players, gamemaster)
+        if error:
+            return error
+
+        if not self.to_character:
+            return "Message requires recipient"
+
+        target_exists = any(p.name == self.to_character for p in players)
+        if not target_exists:
+            return f"Recipient '{self.to_character}' not found"
+
+        return None
+
+    @classmethod
+    def handle_actions(cls, actions_to_process: list["Action"], game_state: ResearchStrategyGameState, players: list["ResearchStrategyPlayer"], gamemaster: "ResearchStrategyGameMaster") -> Dict[str, ResearchStrategyPlayerStateUpdates]:
+        """Process all message actions."""
+        updates = {}
+        for action in actions_to_process:
+            if not isinstance(action, MessageAction):
+                continue
+
+            target_player = action._get_player_by_name(action.to_character, players)
+            if not target_player:
+                continue
+
+            # Create message
+            message = Message(
+                from_character=action.initiating_character_name,
+                to_character=action.to_character,
+                content=action.content,
+                timestamp=game_state.current_date,
+                round_number=game_state.round_number
+            )
+
+            # Add to target player's inbox
+            target_player.attributes.add_message(message)
+
+            # Add to updates for recipient
+            if target_player.name not in updates:
+                updates[target_player.name] = ResearchStrategyPlayerStateUpdates()
+            updates[target_player.name].new_messages.append(message)
+
+        return updates
+
+
+# Global default mapping of action types to their classes
+DEFAULT_ACTION_TYPE_TO_CLASS: Dict[ActionType, type] = {
+    ActionType.FUNDRAISE: FundraiseAction,
+    ActionType.CREATE_RESEARCH_PROJECT: CreateResearchProjectAction,
+    ActionType.CANCEL_RESEARCH_PROJECT: CancelResearchProjectAction,
+    ActionType.INVEST_CAPITAL: InvestCapitalAction,
+    ActionType.SELL_CAPITAL: SellCapitalAction,
+    ActionType.ESPIONAGE: EspionageAction,
+    ActionType.POACH_TALENT: PoachTalentAction,
+    ActionType.LOBBY: LobbyAction,
+    ActionType.MARKETING: MarketingAction,
+    ActionType.MESSAGE: MessageAction,
+}
+
+
+# Legacy data classes for backward compatibility during transition
+@attrs.define
+class ResearchProjectAction:
+    """Details for creating a research project (legacy, used for conversion)."""
+    name: str
+    description: str
+    target_completion_date: str  # ISO format date
+    annual_budget: float
+    required_assets: Dict[str, float]  # technical_capability, capital, human
+    action_type: ActionType = ActionType.CREATE_RESEARCH_PROJECT
 
 
 @attrs.define
 class ResearchStrategyPlayerProposedMove(PlayerProposedMove):
-    """Player proposed move for wargame simulation.
-    This can contain multiple actions and messages.
+    """A proposed move containing one or more actions.
+
+    This class now primarily wraps Action instances for backward compatibility.
+    The action field should be used for new code.
     """
-    # Action-specific data
+    action: Optional[Action] = None
+
+    # Legacy fields for backward compatibility during transition
     action_type: Optional[ActionType] = None
     research_project: Optional[ResearchProjectAction] = None
     project_name_to_cancel: Optional[str] = None
@@ -271,39 +1097,153 @@ class ResearchStrategyPlayerProposedMove(PlayerProposedMove):
     # Support for multiple actions (list of moves)
     additional_actions: List["ResearchStrategyPlayerProposedMove"] = attrs.field(factory=list)
 
+    def get_action(self) -> Optional[Action]:
+        """Get the Action instance, converting from legacy fields if needed."""
+        if self.action:
+            return self.action
+
+        # Convert from legacy fields
+        if self.action_type == ActionType.FUNDRAISE:
+            return FundraiseAction(
+                initiating_character_name="",  # Will be set by caller
+                amount=self.fundraising_amount or 0.0,
+                description=self.fundraising_description
+            )
+        elif self.action_type == ActionType.CREATE_RESEARCH_PROJECT and self.research_project:
+            return CreateResearchProjectAction(
+                initiating_character_name="",  # Will be set by caller
+                name=self.research_project.name,
+                description=self.research_project.description,
+                target_completion_date=self.research_project.target_completion_date,
+                annual_budget=self.research_project.annual_budget,
+                required_assets=self.research_project.required_assets
+            )
+        elif self.action_type == ActionType.CANCEL_RESEARCH_PROJECT:
+            return CancelResearchProjectAction(
+                initiating_character_name="",  # Will be set by caller
+                project_name=self.project_name_to_cancel or ""
+            )
+        elif self.action_type == ActionType.INVEST_CAPITAL:
+            return InvestCapitalAction(
+                initiating_character_name="",  # Will be set by caller
+                amount=self.capital_investment or 0.0
+            )
+        elif self.action_type == ActionType.SELL_CAPITAL:
+            return SellCapitalAction(
+                initiating_character_name="",  # Will be set by caller
+                amount=self.capital_to_sell or 0.0
+            )
+        elif self.action_type == ActionType.ESPIONAGE and self.espionage:
+            return EspionageAction(
+                initiating_character_name="",  # Will be set by caller
+                target_character=self.espionage.target_character,
+                budget=self.espionage.budget,
+                focus=self.espionage.focus
+            )
+        elif self.action_type == ActionType.POACH_TALENT:
+            return PoachTalentAction(
+                initiating_character_name="",  # Will be set by caller
+                target=self.poaching_target or "",
+                budget=self.poaching_budget or 0.0
+            )
+        elif self.action_type == ActionType.LOBBY:
+            return LobbyAction(
+                initiating_character_name="",  # Will be set by caller
+                message=self.lobbying_message or "",
+                budget=self.lobbying_budget or 0.0
+            )
+        elif self.action_type == ActionType.MARKETING:
+            return MarketingAction(
+                initiating_character_name="",  # Will be set by caller
+                message=self.marketing_message or "",
+                budget=self.marketing_budget or 0.0
+            )
+        elif self.action_type == ActionType.MESSAGE and self.message:
+            return MessageAction(
+                initiating_character_name="",  # Will be set by caller
+                to_character=self.message.to_character,
+                content=self.message.content
+            )
+
+        return None
+
     def to_dict(self) -> Dict:
         """Convert move to dictionary for serialization."""
         result = {}
-        if self.action_type:
-            result["action_type"] = self.action_type.value
-        if self.research_project:
-            result["research_project"] = {
-                "name": self.research_project.name,
-                "description": self.research_project.description,
-                "target_completion_date": self.research_project.target_completion_date,
-                "annual_budget": self.research_project.annual_budget,
-                "required_assets": self.research_project.required_assets,
-            }
-        optional_fields = [
-            "project_name_to_cancel", "capital_investment", "capital_to_sell",
-            "poaching_target", "poaching_budget", "lobbying_message", "lobbying_budget",
-            "marketing_message", "marketing_budget", "fundraising_amount", "fundraising_description",
-        ]
-        for field in optional_fields:
-            value = getattr(self, field, None)
-            if value is not None:
-                result[field] = value
-        if self.espionage:
-            result["espionage"] = {
-                "target_character": self.espionage.target_character,
-                "budget": self.espionage.budget,
-                "focus": self.espionage.focus,
-            }
-        if self.message:
-            result["message"] = {
-                "to_character": self.message.to_character,
-                "content": self.message.content,
-            }
+        action = self.get_action()
+        if action:
+            result["action_type"] = action.action_type.value
+            # Serialize action-specific fields
+            if isinstance(action, FundraiseAction):
+                result["fundraising_amount"] = action.amount
+                if action.description:
+                    result["fundraising_description"] = action.description
+            elif isinstance(action, CreateResearchProjectAction):
+                result["research_project"] = {
+                    "name": action.name,
+                    "description": action.description,
+                    "target_completion_date": action.target_completion_date,
+                    "annual_budget": action.annual_budget,
+                    "required_assets": action.required_assets,
+                }
+            elif isinstance(action, CancelResearchProjectAction):
+                result["project_name_to_cancel"] = action.project_name
+            elif isinstance(action, InvestCapitalAction):
+                result["capital_investment"] = action.amount
+            elif isinstance(action, SellCapitalAction):
+                result["capital_to_sell"] = action.amount
+            elif isinstance(action, EspionageAction):
+                result["espionage"] = {
+                    "target_character": action.target_character,
+                    "budget": action.budget,
+                    "focus": action.focus,
+                }
+            elif isinstance(action, PoachTalentAction):
+                result["poaching_target"] = action.target
+                result["poaching_budget"] = action.budget
+            elif isinstance(action, LobbyAction):
+                result["lobbying_message"] = action.message
+                result["lobbying_budget"] = action.budget
+            elif isinstance(action, MarketingAction):
+                result["marketing_message"] = action.message
+                result["marketing_budget"] = action.budget
+            elif isinstance(action, MessageAction):
+                result["message"] = {
+                    "to_character": action.to_character,
+                    "content": action.content,
+                }
+        else:
+            # Fallback to legacy fields
+            if self.action_type:
+                result["action_type"] = self.action_type.value
+            if self.research_project:
+                result["research_project"] = {
+                    "name": self.research_project.name,
+                    "description": self.research_project.description,
+                    "target_completion_date": self.research_project.target_completion_date,
+                    "annual_budget": self.research_project.annual_budget,
+                    "required_assets": self.research_project.required_assets,
+                }
+            optional_fields = [
+                "project_name_to_cancel", "capital_investment", "capital_to_sell",
+                "poaching_target", "poaching_budget", "lobbying_message", "lobbying_budget",
+                "marketing_message", "marketing_budget", "fundraising_amount", "fundraising_description",
+            ]
+            for field in optional_fields:
+                value = getattr(self, field, None)
+                if value is not None:
+                    result[field] = value
+            if self.espionage:
+                result["espionage"] = {
+                    "target_character": self.espionage.target_character,
+                    "budget": self.espionage.budget,
+                    "focus": self.espionage.focus,
+                }
+            if self.message:
+                result["message"] = {
+                    "to_character": self.message.to_character,
+                    "content": self.message.content,
+                }
         return result
     
     def to_str(self) -> str:
@@ -320,6 +1260,7 @@ class ResearchStrategyPlayer(Player):
             attributes: ResearchStrategyPlayerState,
             llm_client: Any,
             system_message_template: Optional[str] = None,
+            available_actions: list[str] = attrs.field(factory=list, default=list(ActionType.__members__.keys())),
             game_context: Optional[str] = None,
     ):
         """Initialize a wargame player.
@@ -335,6 +1276,12 @@ class ResearchStrategyPlayer(Player):
         self.attributes = attributes
         self.llm_client = llm_client
         self.game_context = game_context or ""
+
+        # Validate available actions: These should all come from the ActionType enum:
+        for action in available_actions:
+            if action not in ActionType.__members__:
+                raise ValueError(f"Invalid action: {action}")
+        self.available_actions = available_actions
 
         # Build system message
         self.system_message = self._build_system_message(system_message_template)
@@ -372,9 +1319,7 @@ class ResearchStrategyPlayer(Player):
 
 ## Format for Your Responses
 
-You must respond with a JSON object containing:
-1. "actions": A list of actions you want to take this round
-2. "messages": A list of private messages to send to other characters (optional)
+You must respond with a JSON object containing a list of actions you want to take this round
 
 ### Action Format
 
@@ -389,13 +1334,9 @@ Note: A more concrete, realistic, and well-scoped project is more likely to be a
 - {{"type": "marketing", "message": "<str>", "budget": <float>}}
 - {{"type": "poach_talent", "target": "<character name>", "budget": <float>}}
 - {{"type": "sell_capital", "amount": <float>}}
+- {{"type": "bilateral_message", "to": "<character name>", "content": "<message text>"}}
 
-Consider being more conservative in initial research project budgets—if the budget is too high, the project won't be approved!
-
-### Message Format
-
-Each message in "messages" should be:
-{{"to": "<character name>", "content": "<message text>"}}
+Be sure that your budgets and timelines for all research/capital projects are reasonable. All actions will be validated before being executed.
 
 Always respond with valid JSON only, no additional text."""
 
@@ -638,88 +1579,89 @@ What actions do you want to take this round? Respond with a JSON object as speci
 
         if logger.isEnabledFor(logging.DEBUG):
             logger.debug(f"{self.name} - Parsed {len(actions_data)} actions, {len(messages_data)} messages")
-        
+
         script_logger.info({"round" : round_number, "log_type" : "raw_llm_actions_messages",
                     "player" : self.name, "llm_response" : data})
-        
+
         # Create moves from actions
         moves = []
         for action_dict in actions_data:
-            move = self._create_move_from_dict(action_dict, messages_data)
-            if move.action_type:  # Only add if valid
+            move = self._create_move_from_dict(action_dict)
+            if move.get_action():  # Only add if valid action
                 moves.append(move)
 
-        if moves:
-            return moves
-        else:
-            return []
+        # Create moves from messages
+        for message_dict in messages_data:
+            message_action = MessageAction(
+                initiating_character_name=self.name,
+                to_character=message_dict.get("to", ""),
+                content=message_dict.get("content", "")
+            )
+            move = ResearchStrategyPlayerProposedMove(action=message_action, action_type=ActionType.MESSAGE)
+            moves.append(move)
+
+        return moves
 
     def _create_move_from_dict(
-            self, action_dict: Dict, messages: List[Dict]
+            self, action_dict: Dict
     ) -> ResearchStrategyPlayerProposedMove:
-        """Create a ResearchStrategyPlayerProposedMove from a dictionary."""
-        action_type_map = {
-            "fundraise": ActionType.FUNDRAISE,
-            "create_research_project": ActionType.CREATE_RESEARCH_PROJECT,
-            "cancel_research_project": ActionType.CANCEL_RESEARCH_PROJECT,
-            "invest_capital": ActionType.INVEST_CAPITAL,
-            "sell_capital": ActionType.SELL_CAPITAL,
-            "espionage": ActionType.ESPIONAGE,
-            "poach_talent": ActionType.POACH_TALENT,
-            "lobby": ActionType.LOBBY,
-            "marketing": ActionType.MARKETING,
-        }
+        """Create a ResearchStrategyPlayerProposedMove from a dictionary.
 
-        action_type_str = action_dict.get("type", "")
-        action_type = action_type_map.get(action_type_str)
+        Uses the action_type_to_class mapping to dynamically instantiate the
+        appropriate Action subclass from the dictionary using attrs.
+        """
+        if "type" not in action_dict:
+            return ResearchStrategyPlayerProposedMove()
 
-        move = ResearchStrategyPlayerProposedMove(action_type=action_type)
+        try:
+            action_type = ActionType(action_dict["type"])
+        except ValueError:
+            logger.warning(f"Unknown action type: {action_dict.get('type')}")
+            return ResearchStrategyPlayerProposedMove()
 
-        # Fill in action-specific fields
-        if action_type == ActionType.FUNDRAISE:
-            move.fundraising_amount = action_dict.get("amount")
-            move.fundraising_description = action_dict.get("description")
-        elif action_type == ActionType.CREATE_RESEARCH_PROJECT:
+        # Look up the Action class for this action type
+        action_class = DEFAULT_ACTION_TYPE_TO_CLASS.get(action_type)
+        if not action_class:
+            logger.warning(f"No Action class found for action type: {action_type}")
+            return ResearchStrategyPlayerProposedMove(action_type=action_type)
+
+        # Prepare the data dictionary for instantiation
+        action_data = {"initiating_character_name": self.name}
+
+        # Handle special cases for different action types
+        if action_type == ActionType.CREATE_RESEARCH_PROJECT:
+            # Flatten nested "project" dict
             project_data = action_dict.get("project", {})
-            move.research_project = ResearchProjectAction(
-                name=project_data.get("name", ""),
-                description=project_data.get("description", ""),
-                target_completion_date=project_data.get("target_completion_date", ""),
-                annual_budget=project_data.get("annual_budget", 0.0),
-                required_assets=project_data.get("required_assets", {}),
-            )
-        elif action_type == ActionType.CANCEL_RESEARCH_PROJECT:
-            move.project_name_to_cancel = action_dict.get("project_name")
-        elif action_type == ActionType.INVEST_CAPITAL:
-            move.capital_investment = action_dict.get("amount")
-        elif action_type == ActionType.SELL_CAPITAL:
-            move.capital_to_sell = action_dict.get("amount")
+            action_data.update({
+                "name": project_data.get("name", ""),
+                "description": project_data.get("description", ""),
+                "target_completion_date": project_data.get("target_completion_date", ""),
+                "annual_budget": project_data.get("annual_budget", 0.0),
+                "required_assets": project_data.get("required_assets", {}),
+            })
         elif action_type == ActionType.ESPIONAGE:
-            esp_data = action_dict
-            move.espionage = EspionageAction(
-                target_character=esp_data.get("target") or esp_data.get("target_character", ""),
-                budget=esp_data.get("budget", 0.0),
-                focus=esp_data.get("focus", ""),
-            )
-        elif action_type == ActionType.POACH_TALENT:
-            move.poaching_target = action_dict.get("target")
-            move.poaching_budget = action_dict.get("budget")
-        elif action_type == ActionType.LOBBY:
-            move.lobbying_message = action_dict.get("message")
-            move.lobbying_budget = action_dict.get("budget")
-        elif action_type == ActionType.MARKETING:
-            move.marketing_message = action_dict.get("message")
-            move.marketing_budget = action_dict.get("budget")
+            # Handle "target" vs "target_character" alias
+            action_data.update({
+                "target_character": action_dict.get("target") or action_dict.get("target_character", ""),
+                "budget": action_dict.get("budget", 0.0),
+                "focus": action_dict.get("focus", ""),
+            })
+        else:
+            # For all other actions, copy relevant fields from action_dict
+            # Get the field names from the action class using attrs
+            action_fields = {f.name for f in attrs.fields(action_class) if f.name != "initiating_character_name"}
+            for field_name in action_fields:
+                if field_name in action_dict:
+                    action_data[field_name] = action_dict[field_name]
 
-        # Handle messages (attach first message to this move)
-        if messages:
-            first_message = messages[0]
-            move.message = MessageAction(
-                to_character=first_message.get("to", ""),
-                content=first_message.get("content", ""),
-            )
+        # Instantiate the action using attrs
+        try:
+            action = action_class(**action_data)
+        except (TypeError, ValueError) as e:
+            logger.warning(f"Failed to instantiate {action_class.__name__} from dict: {e}")
+            return ResearchStrategyPlayerProposedMove(action_type=action_type)
 
-        return move
+        return ResearchStrategyPlayerProposedMove(action=action, action_type=action_type)
 
     def correct_moves(
             self, move_modifications: MoveCorrectionMessage, round_number:int=None
@@ -728,8 +1670,8 @@ What actions do you want to take this round? Respond with a JSON object as speci
         logger.info(f"{self.name} - Proposed action failed: {move_modifications.error_message}")
 
         response = self._get_llm_response_blocking(f"Your proposed move described below was rejected, due to the following reason: {move_modifications.error_message}.  Please propose a single corrected move. {move_modifications.original_move.to_str()}")
-        script_logger.info({"round" : round_number,"log_type" : "gm_action_correction", 
-                            "player" : self.name, "status" : "fail", 
+        script_logger.info({"round" : round_number,"log_type" : "gm_action_correction",
+                            "player" : self.name, "status" : "fail",
                             "original_move" : move_modifications.original_move.to_dict(),
                             "correction" :  move_modifications.error_message})
 
@@ -751,21 +1693,12 @@ class ResearchStrategyGameMaster(GenericGameMaster):
     round_number: int = 0
     random_seed: Optional[int] = None
     random_events: List[str] = attrs.field(factory=list)
-    fixed_events: Dict[int, str] = {} 
-    
-    # Game dynamics parameters (can be overridden)
-    fundraising_success_rate: float = 0.7
-    fundraising_efficiency: float = 0.8  # Percentage of requested amount received
-    espionage_base_success_rate: float = 0.3
-    espionage_budget_scaling: float = 1000000.0  # Budget per unit of success rate
-    espionage_max_success_rate: float = 0.8
-    poaching_base_success_rate: float = 0.2
-    poaching_budget_scaling: float = 500000.0
-    poaching_max_success_rate: float = 0.6
-    poaching_transfer_rate: float = 0.1  # Percentage of target's human resources transferred
-    lobbying_backfire_rate: float = 0.1
-    capital_investment_efficiency: float = 0.9  # Budget to capital conversion
-    capital_sale_efficiency: float = 0.7  # Capital to budget conversion
+    fixed_events: Dict[int, str] = {}
+
+    # Action type to class mapping
+    action_type_to_class: Dict[ActionType, type] = attrs.field(default=DEFAULT_ACTION_TYPE_TO_CLASS)
+
+    # Game dynamics parameters (non-action-specific)
     research_progress_rate_base: float = 0.1
     research_progress_rate_max: float = 0.3
     research_human_scaling: float = 100.0  # Human resources per unit of progress rate
@@ -829,7 +1762,6 @@ class ResearchStrategyGameMaster(GenericGameMaster):
                 if not candidate_move.action_type:
                     logger.debug("empty move")
                     moves_to_validate.pop(current_move_index)
-                    current_move_index += 1
                     continue
 
                 validation_error = self._validate_move(player, candidate_move)
@@ -850,180 +1782,94 @@ class ResearchStrategyGameMaster(GenericGameMaster):
     
     def _validate_move(self, player: ResearchStrategyPlayer, move: ResearchStrategyPlayerProposedMove) -> Optional[str]:
         """Validate a player's move. Returns error message if invalid, None if valid."""
-        if not move.action_type:
+        action = move.get_action()
+        if not action:
             return None  # Empty move is valid (no action)
         
-        # Check if player exists
-        player_state = player.attributes
+        # Set the initiating character name
+        action.initiating_character_name = player.name
         
-        # Validate based on action type
-        if move.action_type == ActionType.CREATE_RESEARCH_PROJECT:
-            if not move.research_project:
-                return "Research project creation requires project details"
-            
-            # Check resources
-            required = AssetBalance(
-                technical_capability=move.research_project.required_assets.get("technical_capability", 0),
-                capital=move.research_project.required_assets.get("capital", 0),
-                human=move.research_project.required_assets.get("human", 0),
-            )
-            
-            current = player_state.private_info.true_asset_balance
-            if (current.technical_capability < required.technical_capability or
-                current.capital < required.capital or
-                current.human < required.human):
-                return f"Insufficient resources for research project '{move.research_project.name}'"
-            
-            # Check budget
-            year = str(self.game_state.current_date.year)
-            current_budget = player_state.private_info.budget.get(year, 0.0)
-            if current_budget < move.research_project.annual_budget:
-                return f"Insufficient budget for research project '{move.research_project.name}'"
-        
-        elif move.action_type == ActionType.CANCEL_RESEARCH_PROJECT:
-            if not move.project_name_to_cancel:
-                return "Cancel action requires project name"
-            # Check if project exists and is active
-            found = False
-            for project in player_state.private_info.projects:
-                if project.name == move.project_name_to_cancel and project.status == "active":
-                    found = True
-                    break
-            if not found:
-                return f"Active research project '{move.project_name_to_cancel}' not found"
-        
-        elif move.action_type == ActionType.INVEST_CAPITAL:
-            if not move.capital_investment or move.capital_investment <= 0:
-                return "Capital investment requires positive amount"
-            year = str(self.game_state.current_date.year)
-            budget = player_state.private_info.budget.get(year, 0.0)
-            if budget < move.capital_investment:
-                return f"Insufficient budget for capital investment"
-        
-        elif move.action_type == ActionType.SELL_CAPITAL:
-            if not move.capital_to_sell or move.capital_to_sell <= 0:
-                return "Sell capital requires positive amount"
-            if player_state.private_info.true_asset_balance.capital < move.capital_to_sell:
-                return f"Insufficient capital to sell"
-        
-        elif move.action_type == ActionType.ESPIONAGE:
-            if not move.espionage:
-                return "Espionage action requires espionage details"
-            if not move.espionage.target_character:
-                return "Espionage requires target character"
-            # Check if target exists
-            target_exists = any(p.name == move.espionage.target_character for p in self.players)
-            if not target_exists:
-                return f"Target character '{move.espionage.target_character}' not found"
-            if move.espionage.budget <= 0:
-                return "Espionage requires positive budget"
-            year = str(self.game_state.current_date.year)
-            budget = player_state.private_info.budget.get(year, 0.0)
-            if budget < move.espionage.budget:
-                return "Insufficient budget for espionage"
-        
-        elif move.action_type == ActionType.POACH_TALENT:
-            if not move.poaching_target:
-                return "Poaching requires target character"
-            if not move.poaching_budget or move.poaching_budget <= 0:
-                return "Poaching requires positive budget"
-            target_exists = any(p.name == move.poaching_target for p in self.players)
-            if not target_exists:
-                return f"Target character '{move.poaching_target}' not found"
-            year = str(self.game_state.current_date.year)
-            budget = player_state.private_info.budget.get(year, 0.0)
-            if budget < move.poaching_budget:
-                return "Insufficient budget for poaching"
-        
-        elif move.action_type == ActionType.LOBBY:
-            if not move.lobbying_budget or move.lobbying_budget <= 0:
-                return "Lobbying requires positive budget"
-            year = str(self.game_state.current_date.year)
-            budget = player_state.private_info.budget.get(year, 0.0)
-            if budget < move.lobbying_budget:
-                return "Insufficient budget for lobbying"
-        
-        elif move.action_type == ActionType.MARKETING:
-            if not move.marketing_budget or move.marketing_budget <= 0:
-                return "Marketing requires positive budget"
-            year = str(self.game_state.current_date.year)
-            budget = player_state.private_info.budget.get(year, 0.0)
-            if budget < move.marketing_budget:
-                return "Insufficient budget for marketing"
-        
-        elif move.action_type == ActionType.FUNDRAISE:
-            if not move.fundraising_amount or move.fundraising_amount <= 0:
-                return "Fundraising requires positive amount"
-        
-        elif move.action_type == ActionType.MESSAGE:
-            if not move.message:
-                return "Message action requires message details"
-            if not move.message.to_character:
-                return "Message requires recipient"
-            target_exists = any(p.name == move.message.to_character for p in self.players)
-            if not target_exists:
-                return f"Recipient '{move.message.to_character}' not found"
-        
-        return None  # Valid move
+        # Use the action's validate_action method
+        return action.validate_action(self.game_state, self.players, self)
     
     def simulate_one_round(
         self, game_state: ResearchStrategyGameState, actions: Dict[str, List[ResearchStrategyPlayerProposedMove]]
     ):
-        """Simulate one round of the research strategy game."""
+        """Simulate one round of the research strategy game.
+
+        Actions are grouped by type and processed together, allowing for better
+        modeling of competition for resources, resolution of uncertainty, etc.
+        """
         # Step 1: Increment time
         game_state.increment_round()
         self.round_number = game_state.round_number
         
-        # Step 2: Process messages
-        self._process_messages(game_state, actions)
-        
-        # Step 3: Process character-specific actions
-        action_results = {}
-        for player_name, action_lists in actions.items():
+        # Step 2: Convert moves to Action instances and group by type
+        actions_by_type: Dict[ActionType, List[Action]] = {}
+        for player_name, move_list in actions.items():
             player = self._get_player_by_name(player_name)
-            if player:
-                player_results = []
-                # TODO: does this have to be a nested list?
-                for action_list in action_lists:
-                    for action in action_list:
-                        player_results.extend(self._process_action(game_state, player, action))
-                # NOTE: this now returns a list of string results
-                action_results[player_name] = player_results
+            if not player:
+                continue
+
+            for move in move_list:
+                action = move.get_action()
+                if action:
+                    action.initiating_character_name = player_name
+                    action_type = action.action_type
+                    if action_type not in actions_by_type:
+                        actions_by_type[action_type] = []
+                    actions_by_type[action_type].append(action)
         
-        # Step 4: Update research projects
+        # Step 3: Process actions by type (allowing for batch processing)
+        # Initialize action results for all players
+        action_results: Dict[str, List[str]] = {}
+        for player in self.players:
+            action_results[player.name] = []
+
+        # Process each action type
+        for action_type, actions_to_process in actions_by_type.items():
+            if not actions_to_process:
+                continue
+
+            action_class = self.action_type_to_class.get(action_type)
+            if action_class:
+                # Process all actions of this type together
+                type_updates = action_class.handle_actions(
+                    actions_to_process, game_state, self.players, self
+                )
+
+                # Merge updates into action_results
+                for player_name, updates in type_updates.items():
+                    if player_name not in action_results:
+                        action_results[player_name] = []
+                    action_results[player_name].extend(updates.action_results)
+
+        # Step 4: Action-based updates (research progress, information leaks, etc.)
         self._update_research_projects(game_state)
-        
-        # Step 5: Simulate information leaks
         self._simulate_information_leaks(game_state)
-        
+        self._simulate_espionage_results(game_state)
+
+        # Step 5: Random news events
+
         # Step 6: Introduce random events & fixed events
         self._introduce_random_events(game_state)
         self._introduce_fixed_events(game_state)
-        
-        # Step 7: Create update messages for all players (including espionage results)
+
+        # Step 6: Create update messages for all players
         self._create_update_messages(game_state, action_results)
         
-        # Step 8: Update timestamps
+        # Step 7: Update timestamps
         self.current_time = game_state.current_date
     
     def _process_messages(
-        self, game_state: ResearchStrategyGameState, actions: Dict[str, List[ResearchStrategyPlayerProposedMove]]
+        self, game_state: ResearchStrategyGameState, all_player_actions: Dict[str, List[ResearchStrategyPlayerProposedMove]]
     ):
         """Process private messages between characters."""
-        for player_name, moves in actions.items():
-            for move in moves:
-                for submove in move:
-                    if submove.message:
-                        target_player = self._get_player_by_name(submove.message.to_character)
-                        if target_player:
-                            message = Message(
-                                from_character=player_name,
-                                to_character=submove.message.to_character,
-                                content=submove.message.content,
-                                timestamp=game_state.current_date,
-                                round_number=game_state.round_number,
-                            )
-                            target_player.attributes.add_message(message)
+        for player_name, actions in all_player_actions.items():
+            for action in actions:
+                if action.action_type == ActionType.MESSAGE:
+                    target_player = self._get_player_by_name(action.to_character)
+                    target_player.attributes.add_message(action)
     
     def _process_action(
         self, game_state: ResearchStrategyGameState, player: ResearchStrategyPlayer, move: ResearchStrategyPlayerProposedMove
@@ -1389,7 +2235,7 @@ class ResearchStrategyGameMaster(GenericGameMaster):
              for round, event in self.fixed_events.items():
                 if game_state.round_number == int(round):
                     game_state.public_events.append(f"Round {game_state.round_number}: {event}")
-    
+
     def _assess_research_realism(
         self, project: ResearchProject, player_state: ResearchStrategyPlayerState
     ) -> Optional[str]:
@@ -1569,7 +2415,7 @@ class ResearchStrategyGameMaster(GenericGameMaster):
                 "num_humans" : player.attributes.private_info.true_asset_balance.human
         }
         script_logger.info({"round" : self.game_state.round_number, "log_type" : "game_state", "game_state" : game_state_dict})
-    
+
     def run_simulation(self):
         """Run the full simulation."""
         logger.info("Starting research strategy simulation")
@@ -1596,7 +2442,7 @@ class ResearchStrategyGameMaster(GenericGameMaster):
             actions = {}
             for player in self.players:
                 per_player_actions = self.get_player_move(player)
-                actions[player.name] = [per_player_actions]
+                actions[player.name] = per_player_actions
             # NOTE: we have the actions here, so we could log them here?
 
             # Simulate the round
@@ -1610,7 +2456,7 @@ class ResearchStrategyGameMaster(GenericGameMaster):
             # Log current state
             self.log_game_state()
             self.log_game_state_dict()
-            
+
             # Check for game ending
             ending = self.get_game_ending()
             if ending:

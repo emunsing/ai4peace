@@ -469,7 +469,7 @@ Always respond with valid JSON only, no additional text."""
         # For now, return empty move - the gamemaster will provide context
         return ResearchStrategyPlayerProposedMove()
 
-    async def propose_actions_with_context(
+    def propose_actions_with_context(
             self,
             game_state_summary: str,
             private_updates: str,
@@ -482,9 +482,7 @@ Always respond with valid JSON only, no additional text."""
         )
 
         #NOTE: this is where we send the LLM the raw prompt
-
-        # Use Autogen to get response
-        response = await self._get_llm_response(prompt)
+        response = self._get_llm_response_blocking(prompt)
 
         # Parse response into actions
         moves = self._parse_response(response)
@@ -607,6 +605,19 @@ What actions do you want to take this round? Respond with a JSON object as speci
                 "messages": []
             })
 
+    def _get_llm_response_blocking(self, prompt: str) -> str:
+        coro = self._get_llm_response(prompt)
+        try:
+            asyncio.get_running_loop()
+        except RuntimeError:
+            # No loop running in this thread -> safe to run synchronously
+            return asyncio.run(coro)
+        else:
+            # Already in an event loop -> you MUST await instead of blocking
+            raise RuntimeError(
+                "_get_llm_response_blocking() called while an event loop is running. Make the caller async and `await _get_llm_response(...)`."
+            )
+
     def _parse_response(self, response_text: str) -> List[ResearchStrategyPlayerProposedMove]:
         """Parse agent/LLM response into ResearchStrategyPlayerProposedMove."""
         # Try to extract JSON from response
@@ -713,7 +724,7 @@ What actions do you want to take this round? Respond with a JSON object as speci
         """Correct moves based on gamemaster feedback."""
         logger.info(f"{self.name} - Proposed action failed: {move_modifications.error_message}")
 
-        response = self._get_llm_response(f"Your proposed move described below was rejected, due to the following reason: {move_modifications.error_message}.  Please propose a single corrected move. {move_modifications.original_move.to_str()}")
+        response = self._get_llm_response_blocking(f"Your proposed move described below was rejected, due to the following reason: {move_modifications.error_message}.  Please propose a single corrected move. {move_modifications.original_move.to_str()}")
         return self._parse_response(response)
 
 
@@ -791,20 +802,11 @@ class ResearchStrategyGameMaster(GenericGameMaster):
         private_updates = self._create_private_updates_summary(player)
         
         for attempt in range(max_attempts):
-            # Get move from player (using async method)
-            try:
-                loop = asyncio.get_event_loop()
-            except RuntimeError:
-                loop = asyncio.new_event_loop()
-                asyncio.set_event_loop(loop)
-            
-            moves_to_validate = loop.run_until_complete(
-                player.propose_actions_with_context(
-                    game_state_summary=game_state_summary,
-                    private_updates=private_updates,
-                    current_date=self.game_state.current_date,
-                    round_number=self.game_state.round_number,
-                )
+            moves_to_validate = player.propose_actions_with_context(
+                game_state_summary=game_state_summary,
+                private_updates=private_updates,
+                current_date=self.game_state.current_date,
+                round_number=self.game_state.round_number,
             )
             valid_moves = []
             current_move_index = 0
@@ -827,8 +829,8 @@ class ResearchStrategyGameMaster(GenericGameMaster):
                         error_message=validation_error
                     )
                     logger.debug("Requesting correction: "+ validation_error)
-                    move = player.correct_moves(correction)
-                    moves_to_validate[current_move_index] = move
+                    updated_move = player.correct_moves(correction)
+                    moves_to_validate[current_move_index] = updated_move
                     current_move_index += 1
             if len(moves_to_validate) == 0:
                 break

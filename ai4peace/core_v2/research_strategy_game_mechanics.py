@@ -381,6 +381,7 @@ You must respond with a JSON object containing:
 Each action in "actions" should be one of the following (given in alphabetical order)
 - {{"type": "cancel_research_project", "project_name": "<str>"}}
 - {{"type": "create_research_project", "project": {{"name": "<str>", "description": "<str>", "target_completion_date": "<ISO date>", "annual_budget": <float>, "required_assets": {{"technical_capability": <float>, "capital": <float>, "human": <float>}}}}}}
+Note: A more concrete, realistic, and well-scoped project is more likely to be approved. Allocate a _subset_ of your _current_ technical capability, capital, and human resources. Projects needing more resources than you currently have will not be approved.
 - {{"type": "espionage", "target": "<character name>", "budget": <float>, "focus": "<what to investigate>"}}
 - {{"type": "fundraise", "amount": <float>, "description": "<str>"}}
 - {{"type": "invest_capital", "amount": <float>}}
@@ -548,16 +549,15 @@ Note that these are ordered alphabetically and not by likely usefulness or prior
 
 1. **Cancel Projects** - Free up resources by cancelling research
 2. **Capital Investment** - Invest in infrastructure, factories, compute, etc.
-3. **Espionage** - Gather intelligence on other characters
-4. **Fundraising** - Request budget increases or raise capital
-5. **Lobbying** - Influence public opinion and policy (may backfire)
-6. **Marketing** - Promote your position publicly
-7. **Poach Talent** - Attempt to recruit from one of the other organizations: Amber Systems, Blue Azure AI, or Crimson Labs
-8. **Private Messages** - Negotiate with other characters directly
-9. **Research Projects** - Create new research initiatives (will consume budget and assets)
+3. **Create Research Projects** - Create new research initiatives by allocating a _subset_ of your _current_ technical capability, capital, and human resources. 
+    Projects needing more resources than you currently have will not be approved.
+4. **Espionage** - Gather intelligence on other characters
+5. **Fundraising** - Request budget increases or raise capital
+6. **Lobbying** - Influence public opinion and policy (may backfire)
+7. **Marketing** - Promote your position publicly
+8. **Poach Talent** - Attempt to recruit from one of the other organizations: Amber Systems, Blue Azure AI, or Crimson Labs
+9. **Private Messages** - Negotiate with other characters directly
 10. **Sell Capital** - Divest assets to raise funds
-
-Consider being more conservative in initial research project budgets—if the budget is too high, the project won't be approved!
 
 What actions do you want to take this round? Respond with a JSON object as specified in your system message."""
 
@@ -794,13 +794,14 @@ class ResearchStrategyGameMaster(GenericGameMaster):
     
     def get_player_move(self, player: ResearchStrategyPlayer) -> List[ResearchStrategyPlayerProposedMove]:
         """Get validated move from player, with correction loop."""
-        # TODO: how many attempts do we really need?
-        max_attempts = 2
+        # NOTE: for now, loop through all proposed moves once and allow the agent one retry for any invalid move
+        max_attempts = 1
         
         # Build context for player
         game_state_summary = self._create_game_state_summary()
         private_updates = self._create_private_updates_summary(player)
         
+        valid_moves = []
         for attempt in range(max_attempts):
             moves_to_validate = player.propose_actions_with_context(
                 game_state_summary=game_state_summary,
@@ -808,32 +809,35 @@ class ResearchStrategyGameMaster(GenericGameMaster):
                 current_date=self.game_state.current_date,
                 round_number=self.game_state.round_number,
             )
-            valid_moves = []
-            current_move_index = 0
-            while len(moves_to_validate) > 0:
-                move = moves_to_validate[current_move_index]
-                if not move.action_type:
+            
+            for candidate_move in moves_to_validate:
+                if not candidate_move.action_type:
+                    # no action type means the move is invalid/not one we recognize yet
                     logger.debug("empty move")
-                    moves_to_validate.pop(current_move_index)
-                    current_move_index += 1
-                    continue
-
-                validation_error = self._validate_move(player, move)
-                if validation_error is None:
-                    moves_to_validate.pop(current_move_index)
-                    valid_moves.append(move)
                 else:
-                    # Create correction message
-                    correction = MoveCorrectionMessage(
-                        original_move=move,
-                        error_message=validation_error
-                    )
-                    logger.debug("Requesting correction: "+ validation_error)
-                    updated_move = player.correct_moves(correction)
-                    moves_to_validate[current_move_index] = updated_move
-                    current_move_index += 1
-            if len(moves_to_validate) == 0:
-                break
+                    validation_error = self._validate_move(player, candidate_move)
+                    # no validation error means the move is valid
+                    if validation_error is None:
+                        valid_moves.append(candidate_move)
+                    else:
+                        # Second chance: GM can orrect the move and let the agent try again
+                        correction = MoveCorrectionMessage(
+                            original_move=candidate_move,
+                            error_message=validation_error
+                        )
+                        logger.debug("Requesting correction: "+ validation_error)
+                        retry_moves = player.correct_moves(correction)
+                        # NOTE: we only need the first move here
+                        retry_move = retry_moves[0]
+                        if not retry_move.action_type:
+                            logger.debug("empty move")
+                        else:
+                            second_validate_error = self._validate_move(player, retry_move)
+                            if second_validate_error is None:
+                                # now we have a fixed move!
+                                valid_moves.append(retry_move)
+                            else:
+                                logger.debug("move correction feedback offered but still not fixed")
         return valid_moves
     
     def _validate_move(self, player: ResearchStrategyPlayer, move: ResearchStrategyPlayerProposedMove) -> Optional[str]:

@@ -63,27 +63,21 @@ def main(
     """
     # Set up logging
     setup_logging(log_file=log_file) 
-    try:
-        # Load scenario
-        scenario_class = load_scenario_class(scenario, must_subclass=GameScenario)
 
-        llm_client = create_llm_client(
-            api_key=api_key,
-            model=model,
-            api_base=api_base,
-        )
+    # Load scenario
+    scenario_class = load_scenario_class(scenario, must_subclass=GameScenario)
 
-        kwargs = json.loads(json_kwargs)
+    llm_client = create_llm_client(
+        api_key=api_key,
+        model=model,
+        api_base=api_base,
+    )
 
-        scenario_instance = scenario_class(llm_client=llm_client, **kwargs)
+    kwargs = json.loads(json_kwargs)
+    scenario_instance = scenario_class(llm_client=llm_client, **kwargs)
 
-        gamemaster = scenario_instance.get_game_master()
-        gamemaster.run_simulation()
-
-    except Exception as e:
-        click.echo(f"Error: {e}", err=True)
-        raise click.Abort()
-
+    gamemaster = scenario_instance.get_game_master()
+    gamemaster.run_simulation()
 
 if __name__ == "__main__":
     main()

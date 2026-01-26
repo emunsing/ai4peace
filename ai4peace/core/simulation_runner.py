@@ -114,6 +114,7 @@ def create_llm_client(
     function_calling: bool = True,
     json_output: bool = True,
     structured_output: bool = False,
+    timeout: float = 30.0,
 ) -> Any:
     """Create an LLM client with the specified configuration.
     
@@ -140,6 +141,7 @@ def create_llm_client(
     client_kwargs = {
         "model": model,
         "api_key": api_key,
+        "timeout": timeout,
     }
     
     if api_base:

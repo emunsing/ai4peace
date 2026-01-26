@@ -383,14 +383,14 @@ class CreateResearchProjectAction(Action):
         if (current.technical_capability < required.technical_capability or
             current.capital < required.capital or
             current.human < required.human):
-            return f"Fail:Insufficient resources to start research project '{action.name}'"
-
+            return f"Fail:Insufficient resources to start research project '{action.project_name}'"
+        
         # Check budget
         year = str(game_state.current_date.year)
         current_budget = player_state.private_info.budget.get(year, 0.0)
         if current_budget < action.annual_budget:
-            return f"Fail:Insufficient budget for research project '{action.name}'"
-
+            return f"Fail:Insufficient budget for research project '{action.project_name}'"
+        
         # Create project
         try:
             target_date = datetime.datetime.fromisoformat(action.target_completion_date)
@@ -398,7 +398,7 @@ class CreateResearchProjectAction(Action):
             target_date = game_state.current_date + datetime.timedelta(days=365)
 
         project = ResearchProject(
-            project_name=action.name,
+            project_name=action.project_name,
             description=action.description,
             target_completion_date=target_date,
             committed_budget=action.annual_budget,
@@ -417,9 +417,9 @@ class CreateResearchProjectAction(Action):
 
         # Add project
         player_state.private_info.projects.append(project)
-
-        return f"Success:Created research project '{action.name}'"
-
+        
+        return f"Success:Created research project '{action.project_name}'"
+    
     @classmethod
     def handle_actions(cls, actions_to_process: list["Action"], game_state: ResearchStrategyGameState, players: list["ResearchStrategyPlayer"], gamemaster: "ResearchStrategyGameMaster") -> Dict[str, ResearchStrategyPlayerStateUpdates]:
         """Process all research project creation actions."""
@@ -1057,201 +1057,6 @@ ACTION_TYPE_TO_CLASS: Dict[ActionType, type] = {
 }
 
 
-# Legacy data classes for backward compatibility during transition
-@attrs.define
-class ResearchProjectAction:
-    """Details for creating a research project (legacy, used for conversion)."""
-    name: str
-    description: str
-    target_completion_date: str  # ISO format date
-    annual_budget: float
-    required_assets: Dict[str, float]  # technical_capability, capital, human
-    action_type: ActionType = ActionType.CREATE_RESEARCH_PROJECT
-
-
-@attrs.define
-class ResearchStrategyPlayerProposedMove(PlayerProposedMove):
-    """A proposed move containing one or more actions.
-
-    This class now primarily wraps Action instances for backward compatibility.
-    The action field should be used for new code.
-    """
-    action: Optional[Action] = None
-
-    # Legacy fields for backward compatibility during transition
-    action_type: Optional[ActionType] = None
-    research_project: Optional[ResearchProjectAction] = None
-    project_name_to_cancel: Optional[str] = None
-    capital_investment: Optional[float] = None
-    capital_to_sell: Optional[float] = None
-    espionage: Optional[EspionageAction] = None
-    poaching_target: Optional[str] = None
-    poaching_budget: Optional[float] = None
-    lobbying_message: Optional[str] = None
-    lobbying_budget: Optional[float] = None
-    marketing_message: Optional[str] = None
-    marketing_budget: Optional[float] = None
-    message: Optional[MessageAction] = None
-    fundraising_amount: Optional[float] = None
-    fundraising_description: Optional[str] = None
-
-    # Support for multiple actions (list of moves)
-    additional_actions: List["ResearchStrategyPlayerProposedMove"] = attrs.field(factory=list)
-
-    def get_action(self) -> Optional[Action]:
-        """Get the Action instance, converting from legacy fields if needed."""
-        if self.action:
-            return self.action
-
-        # Convert from legacy fields
-        if self.action_type == ActionType.FUNDRAISE:
-            return FundraiseAction(
-                initiating_character_name="",  # Will be set by caller
-                amount=self.fundraising_amount or 0.0,
-                description=self.fundraising_description
-            )
-        elif self.action_type == ActionType.CREATE_RESEARCH_PROJECT and self.research_project:
-            return CreateResearchProjectAction(
-                initiating_character_name="",  # Will be set by caller
-                name=self.research_project.project_name,
-                description=self.research_project.description,
-                target_completion_date=self.research_project.target_completion_date,
-                annual_budget=self.research_project.annual_budget,
-                required_assets=self.research_project.required_assets
-            )
-        elif self.action_type == ActionType.CANCEL_RESEARCH_PROJECT:
-            return CancelResearchProjectAction(
-                initiating_character_name="",  # Will be set by caller
-                project_name=self.project_name_to_cancel or ""
-            )
-        elif self.action_type == ActionType.INVEST_CAPITAL:
-            return InvestCapitalAction(
-                initiating_character_name="",  # Will be set by caller
-                amount=self.capital_investment or 0.0
-            )
-        elif self.action_type == ActionType.SELL_CAPITAL:
-            return SellCapitalAction(
-                initiating_character_name="",  # Will be set by caller
-                amount=self.capital_to_sell or 0.0
-            )
-        elif self.action_type == ActionType.ESPIONAGE and self.espionage:
-            return EspionageAction(
-                initiating_character_name="",  # Will be set by caller
-                target_player=self.espionage.target_player,
-                budget=self.espionage.budget,
-                focus=self.espionage.focus
-            )
-        elif self.action_type == ActionType.POACH_TALENT:
-            return PoachTalentAction(
-                initiating_character_name="",  # Will be set by caller
-                target=self.poaching_target or "",
-                budget=self.poaching_budget or 0.0
-            )
-        elif self.action_type == ActionType.LOBBY:
-            return LobbyAction(
-                initiating_character_name="",  # Will be set by caller
-                message=self.lobbying_message or "",
-                budget=self.lobbying_budget or 0.0
-            )
-        elif self.action_type == ActionType.MARKETING:
-            return MarketingAction(
-                initiating_character_name="",  # Will be set by caller
-                message=self.marketing_message or "",
-                budget=self.marketing_budget or 0.0
-            )
-        elif self.action_type == ActionType.MESSAGE and self.message:
-            return MessageAction(
-                initiating_character_name="",  # Will be set by caller
-                to_character=self.message.to_character,
-                content=self.message.content
-            )
-
-        return None
-
-    def to_dict(self) -> Dict:
-        """Convert move to dictionary for serialization."""
-        result = {}
-        action = self.get_action()
-        if action:
-            result["action_type"] = action.action_type.value
-            # Serialize action-specific fields
-            if isinstance(action, FundraiseAction):
-                result["fundraising_amount"] = action.amount
-                if action.description:
-                    result["fundraising_description"] = action.description
-            elif isinstance(action, CreateResearchProjectAction):
-                result["research_project"] = {
-                    "project_name": action.name,
-                    "description": action.description,
-                    "target_completion_date": action.target_completion_date,
-                    "annual_budget": action.annual_budget,
-                    "required_assets": action.required_assets,
-                }
-            elif isinstance(action, CancelResearchProjectAction):
-                result["project_name_to_cancel"] = action.project_name
-            elif isinstance(action, InvestCapitalAction):
-                result["capital_investment"] = action.amount
-            elif isinstance(action, SellCapitalAction):
-                result["capital_to_sell"] = action.amount
-            elif isinstance(action, EspionageAction):
-                result["espionage"] = {
-                    "target_player": action.target_player,
-                    "budget": action.budget,
-                    "focus": action.focus,
-                }
-            elif isinstance(action, PoachTalentAction):
-                result["poaching_target"] = action.target
-                result["poaching_budget"] = action.budget
-            elif isinstance(action, LobbyAction):
-                result["lobbying_message"] = action.message
-                result["lobbying_budget"] = action.budget
-            elif isinstance(action, MarketingAction):
-                result["marketing_message"] = action.message
-                result["marketing_budget"] = action.budget
-            elif isinstance(action, MessageAction):
-                result["message"] = {
-                    "to_character": action.to_character,
-                    "content": action.content,
-                }
-        else:
-            # Fallback to legacy fields
-            if self.action_type:
-                result["action_type"] = self.action_type.value
-            if self.research_project:
-                result["research_project"] = {
-                    "project_name": self.research_project.project_name,
-                    "description": self.research_project.description,
-                    "target_completion_date": self.research_project.target_completion_date,
-                    "annual_budget": self.research_project.annual_budget,
-                    "required_assets": self.research_project.required_assets,
-                }
-            optional_fields = [
-                "project_name_to_cancel", "capital_investment", "capital_to_sell",
-                "poaching_target", "poaching_budget", "lobbying_message", "lobbying_budget",
-                "marketing_message", "marketing_budget", "fundraising_amount", "fundraising_description",
-            ]
-            for field in optional_fields:
-                value = getattr(self, field, None)
-                if value is not None:
-                    result[field] = value
-            if self.espionage:
-                result["espionage"] = {
-                    "target_player": self.espionage.target_player,
-                    "budget": self.espionage.budget,
-                    "focus": self.espionage.focus,
-                }
-            if self.message:
-                result["message"] = {
-                    "to_character": self.message.to_character,
-                    "content": self.message.content,
-                }
-        return result
-    
-    def to_str(self) -> str:
-        action_as_dict = self.to_dict()
-        return pprint.pformat(action_as_dict, indent=1)
-
-
 class ResearchStrategyPlayer(Player):
     """Player for wargame simulation using LLM agents."""
 
@@ -1300,6 +1105,8 @@ class ResearchStrategyPlayer(Player):
 
         # Action history for tracking
         self.action_history: Dict = {}
+
+        self.max_attempts: int = 3  # Max attempts for LLM response parsing
 
     def _build_system_message(self, template: Optional[str] = None) -> str:
         """Build the system message for the agent."""
@@ -1402,13 +1209,7 @@ Always respond with valid JSON only, no additional text."""
             "espionage_results": updates.espionage_results,
         }
 
-    def propose_actions(self) -> List[ResearchStrategyPlayerProposedMove]:
-        """Propose actions using LLM."""
-        # This will be called by the gamemaster with appropriate context
-        # For now, return empty move - the gamemaster will provide context
-        return ResearchStrategyPlayerProposedMove()
-
-    def propose_actions_with_context(
+    def propose_actions(
             self,
             game_state_summary: str,
             private_updates: str,
@@ -1420,10 +1221,10 @@ Always respond with valid JSON only, no additional text."""
             game_state_summary, private_updates, current_date, round_number
         )
 
-        #NOTE: this is where we send the LLM the raw prompt
-        # response = self._get_llm_response_blocking(prompt)
-        from ai4peace.core_v2.test_tools import response_text_1
-        response = response_text_1
+        # NOTE: this is where we send the LLM the raw prompt
+        response = self._get_llm_response_blocking(prompt)
+        # from ai4peace.core_v2.test_tools import response_text_1
+        # response = response_text_1
 
         # Parse response into actions
         moves = self._parse_response(response, round_number)
@@ -1566,18 +1367,35 @@ What actions do you want to take this round? Respond with a JSON object as speci
                 data = json.loads(response_text)
             except json.JSONDecodeError:
                 logger.error(f"Could not parse response as JSON: {response_text}")
-                return ResearchStrategyPlayerProposedMove()
+                return {}
         else:
-            data = json.loads(json_match.group())
+            try:
+                data = json.loads(json_match.group())
+            except json.JSONDecodeError:
+                logger.error(f"Could not parse extracted JSON: {json_match.group()}")
+                return {}
         return data
 
     def _parse_response(self, response_text: str) -> List[Action]:
-        """Parse agent/LLM response into ResearchStrategyPlayerProposedMove."""
+        """Parse agent/LLM response into Action."""
         # Try to extract JSON from response
         logger.debug(f"raw LLM response: {response_text}")
 
         data = self.extract_json_from_response(response_text)
-        actions_data = data.get("actions", [])
+        if isinstance(data, dict):
+            if "actions" in data:
+                actions_data = data['actions']
+            elif 'type' in data:
+                actions_data = [data]
+            else:
+                logger.error(f"Unexpected data format in dict: {data}")
+                return []
+        elif isinstance(data, list):
+            assert all(isinstance(item, dict) and 'type' in item for item in data), "All items in the list must be action dictionaries"
+            actions_data = data
+        else:
+            logger.error(f"Unexpected data format: {data}")
+            return []
 
         if logger.isEnabledFor(logging.DEBUG):
             logger.debug(f"{self.name} - Parsing {len(actions_data)} actions")
@@ -1597,8 +1415,8 @@ What actions do you want to take this round? Respond with a JSON object as speci
     def _create_move_from_dict(
             self, action_dict: Dict
     ) -> Action | None:
-        """Create a ResearchStrategyPlayerProposedMove from a dictionary.
-
+        """Create a Action from a dictionary.
+        
         Uses the action_type_to_class mapping to dynamically instantiate the
         appropriate Action subclass from the dictionary using attrs.
         """
@@ -1627,17 +1445,28 @@ What actions do you want to take this round? Respond with a JSON object as speci
     ) -> Action:
         """Correct moves based on gamemaster feedback."""
         logger.info(f"{self.name} - Proposed action failed: {move_modifications.error_message}")
-        original_move_obj = attrs.asdict(move_modifications.original_move())
+        original_move_obj = attrs.asdict(move_modifications.original_move)
         original_move_obj.pop('initiating_character_name')
         original_move_obj['type'] = move_modifications.original_move.action_type.value
 
-        response = self._get_llm_response_blocking(f"Your proposed move described below was rejected, due to the following reason: {move_modifications.error_message}.  Please propose a single corrected move. {json.dumps(original_move_obj)}")
+        updated_moves = []
+        for i in range(self.max_attempts):
+            correction_msg = f"""
+Your proposed move described below was rejected, due to the following reason: {move_modifications.error_message}. Please update this specific proposed action to correct the issue.
+You currently have the following limited resources, and must spend them wisely: {attrs.asdict(self.attributes.private_info.true_asset_balance)}\n
+PREVIOUS PROPOSAL:\n
+{json.dumps(original_move_obj)}"""
+            response = self._get_llm_response_blocking(correction_msg)
+
+            updated_moves = self._parse_response(response)
+            if updated_moves:
+                return updated_moves[0]
         script_logger.info({"round" : round_number,"log_type" : "gm_action_correction",
                             "player" : self.name, "status" : "fail",
                             "original_move" : move_modifications.original_move.to_dict(),
                             "correction" :  move_modifications.error_message})
 
-        return self._parse_response(response)
+        return move_modifications.original_move  # Fallback to original move if correction fails
 
 
 @attrs.define
@@ -1666,7 +1495,9 @@ class ResearchStrategyGameMaster(GenericGameMaster):
     research_human_scaling: float = 100.0  # Human resources per unit of progress rate
     information_leak_probability: float = 0.05
     random_event_probability: float = 0.1
-    
+
+    max_attempts: int = 3  # Max attempts for move correction loops
+
     _random: random.Random = attrs.field(init=False)
     
     def __attrs_post_init__(self):
@@ -1698,24 +1529,19 @@ class ResearchStrategyGameMaster(GenericGameMaster):
     
     def get_player_move(self, player: ResearchStrategyPlayer) -> List[Action]:
         """Get validated move from player, with correction loop."""
-        max_attempts = 2
         
         # Build context for player
         game_state_summary = self._create_game_state_summary()
         private_updates = self._create_private_updates_summary(player)
         
-        # TODO: Do we want an outer validation loop in case of general JSON failures?
-        moves_to_validate = player.propose_actions_with_context(
-            game_state_summary=game_state_summary,
-            private_updates=private_updates,
-            current_date=self.game_state.current_date,
-            round_number=self.game_state.round_number,
-        )
-
-        valid_moves = []
-        n_attempts = 0
-        while len(moves_to_validate) > 0 and n_attempts < max_attempts:
-            n_attempts += 1
+        for attempt in range(self.max_attempts):
+            moves_to_validate = player.propose_actions(
+                game_state_summary=game_state_summary,
+                private_updates=private_updates,
+                current_date=self.game_state.current_date,
+                round_number=self.game_state.round_number,
+            )
+            valid_moves = []
             current_move_index = 0
             while len(moves_to_validate) > 0 and current_move_index < len(moves_to_validate):
                 move = moves_to_validate[current_move_index]
@@ -1805,7 +1631,7 @@ class ResearchStrategyGameMaster(GenericGameMaster):
         self.current_time = game_state.current_date
     
     def _process_messages(
-        self, game_state: ResearchStrategyGameState, all_player_actions: Dict[str, List[ResearchStrategyPlayerProposedMove]]
+        self, game_state: ResearchStrategyGameState, all_player_actions: Dict[str, List[Action]]
     ):
         """Process private messages between characters."""
         for player_name, actions in all_player_actions.items():

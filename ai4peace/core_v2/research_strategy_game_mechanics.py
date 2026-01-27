@@ -435,10 +435,30 @@ class CreateResearchProjectAction(Action):
             if player.name not in updates:
                 updates[player.name] = ResearchStrategyPlayerStateUpdates()
 
-            result = cls._process_single_action(action, player.attributes, game_state, gamemaster._assess_research_realism)
+            result = cls._process_single_action(action, player.attributes, game_state, cls._assess_research_realism)
             updates[player.name].action_results.append(result)
 
         return updates
+
+    @staticmethod
+    def _assess_research_realism(
+            project: ResearchProject, player_state: ResearchStrategyPlayerState
+    ) -> Optional[str]:
+        """Assess if research goals are realistic and modify if needed."""
+        days_to_complete = (project.target_completion_date - datetime.datetime.now()).days
+        required_resources = (
+                project.committed_assets.human +
+                project.committed_assets.technical_capability * 0.5 +
+                project.committed_assets.capital * 0.3
+        )
+
+        # Rough estimate: need at least 10 resource-days per day of timeline
+        if required_resources * days_to_complete < days_to_complete * 10:
+            # Extend timeline
+            project.target_completion_date = datetime.datetime.now() + datetime.timedelta(days=365)
+            return "Timeline extended to be more realistic given available resources."
+
+        return None
 
 
 @attrs.define
@@ -1710,25 +1730,6 @@ class ResearchStrategyGameMaster(GenericGameMaster):
              for round, event in self.fixed_events.items():
                 if game_state.round_number == int(round):
                     game_state.public_events.append(f"Round {game_state.round_number}: {event}")
-
-    def _assess_research_realism(
-        self, project: ResearchProject, player_state: ResearchStrategyPlayerState
-    ) -> Optional[str]:
-        """Assess if research goals are realistic and modify if needed."""
-        days_to_complete = (project.target_completion_date - datetime.datetime.now()).days
-        required_resources = (
-            project.committed_assets.human +
-            project.committed_assets.technical_capability * 0.5 +
-            project.committed_assets.capital * 0.3
-        )
-        
-        # Rough estimate: need at least 10 resource-days per day of timeline
-        if required_resources * days_to_complete < days_to_complete * 10:
-            # Extend timeline
-            project.target_completion_date = datetime.datetime.now() + datetime.timedelta(days=365)
-            return "Timeline extended to be more realistic given available resources."
-        
-        return None
     
     def _create_update_messages(
         self, game_state: ResearchStrategyGameState, action_results: List[Dict[str, List[str]]]

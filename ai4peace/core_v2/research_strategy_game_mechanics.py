@@ -1671,9 +1671,9 @@ class ResearchStrategyGameMaster(GenericGameMaster):
                         target_player = self._get_player_by_name(esp_result["target"])
                         if target_player:
                             # Store for later inclusion in update message
-                            #f not hasattr(player_state, '_private_updates'):
-                            #    player_state._private_updates = []
-                            player_state.private_updates.append(
+                            if not hasattr(player_state, '_private_updates'):
+                               player_state._private_updates = []
+                            player_state._private_updates.append(
                                 f"Espionage on {esp_result['target']} ({esp_result['focus']}): "
                                 f"Discovered budget ≈${target_player.attributes.private_info.budget.get(str(game_state.current_date.year), 0):,.0f}, "
                                 f"assets: tech={target_player.attributes.private_info.true_asset_balance.technical_capability:.1f}, "
@@ -1828,7 +1828,7 @@ class ResearchStrategyGameMaster(GenericGameMaster):
             return self.game_state.game_history[-1]
         return "Game starting..."
     
-    def _create_private_updates_summary(self, player: ResearchStrategyPlayer) -> str:
+    def _create_private_updates_summary(self, player: ResearchStrategyPlayer, game_state: ResearchStrategyGameState) -> str:
         """Create summary of private updates for a player."""
         updates = []
         
@@ -1848,7 +1848,7 @@ class ResearchStrategyGameMaster(GenericGameMaster):
                     updates.append(
                         f"Espionage on {esp_result['target']} ({esp_result['focus']}): "
                         # TODO: how to properly pass this?
-                        #f"Discovered budget ≈${target_player.attributes.private_info.budget.get(str(game_state.current_date.year), 0):,.0f}, "
+                        f"Discovered budget ≈${target_player.attributes.private_info.budget.get(str(game_state.current_date.year), 0):,.0f}, "
                         f"assets: tech={target_player.attributes.private_info.true_asset_balance.technical_capability:.1f}, "
                         f"capital={target_player.attributes.private_info.true_asset_balance.capital:.1f}, "
                         f"human={target_player.attributes.private_info.true_asset_balance.human:.1f}"

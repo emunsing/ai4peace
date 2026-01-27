@@ -8,10 +8,7 @@ from enum import Enum
 from pathlib import Path
 from typing import Dict, Optional, Any
 
-try:
-    from autogen_ext.models.openai import OpenAIChatCompletionClient
-except ImportError:
-    OpenAIChatCompletionClient = None
+from autogen_ext.models.openai import OpenAIChatCompletionClient
 
 from .game_state import GameState
 from .agent import GameAgent

@@ -34,8 +34,8 @@ import pandas as pd
 
 logger = logging.getLogger(__name__)
 
-# from ai4peace.core.utils import get_transcript_logger
-# script_logger = get_transcript_logger()
+from ai4peace.core.utils import get_transcript_logger
+script_logger = get_transcript_logger()
 
 from .new_architecture_draft import GameState, PlayerState
 
@@ -1357,10 +1357,8 @@ What actions do you want to take this round? Respond with a JSON object as speci
             )
 
     @staticmethod
-    def _parse_response(response_text: str, round_number:int=None) -> List[ResearchStrategyPlayerProposedMove]:
-        """Parse agent/LLM response into ResearchStrategyPlayerProposedMove."""
-        # This block handles cases where the LLM wraps the JSON in a code block or other formatting.
-        logger.debug(f"raw LLM response: {response_text}")
+    def extract_json_from_response(response_text: str) -> Dict:
+         # This block handles cases where the LLM wraps the JSON in a code block or other formatting.
         json_match = re.search(r'\{.*\}', response_text, re.DOTALL)
         if not json_match:
             try:
@@ -1376,7 +1374,7 @@ What actions do you want to take this round? Respond with a JSON object as speci
                 return {}
         return data
 
-    def _parse_response(self, response_text: str) -> List[Action]:
+    def _parse_response(self, response_text: str, round_number:int = None) -> List[Action]:
         """Parse agent/LLM response into Action."""
         # Try to extract JSON from response
         logger.debug(f"raw LLM response: {response_text}")
@@ -1639,298 +1637,6 @@ class ResearchStrategyGameMaster(GenericGameMaster):
                 if action.action_type == ActionType.MESSAGE:
                     target_player = self._get_player_by_name(action.to_character)
                     target_player.attributes.add_message(action)
-    
-    def _process_action(
-        self, game_state: ResearchStrategyGameState, player: ResearchStrategyPlayer, move: ResearchStrategyPlayerProposedMove
-    ) -> List[str]:
-        """Process a single action and return result descriptions."""
-        # NOTE: currently no case where we return more than one string as the result?
-        results = []
-
-        if not move.action_type:
-            logger.debug(f"{player.name}: Empty action")
-            script_logger.info({"round" : game_state.round_number, "log_type" : "empty_action", "player" : player.name})
-            return results
-        else:
-            logger.info(f"{player.name} proposed action:\n{move.to_str()}")
-            script_logger.info({"round" : game_state.round_number, "log_type" : "propose_action", "player" : player.name, "actions" : move.to_dict()})
-
-        player_state = player.attributes
-
-        if move.action_type == ActionType.FUNDRAISE:
-            result = self._process_fundraising(player_state, move)
-            results.append(result)
-        elif move.action_type == ActionType.CREATE_RESEARCH_PROJECT:
-            result = self._process_create_research(player_state, move, game_state)
-            results.append(result)
-        elif move.action_type == ActionType.CANCEL_RESEARCH_PROJECT:
-            result = self._process_cancel_research(player_state, move)
-            results.append(result)
-        elif move.action_type == ActionType.INVEST_CAPITAL:
-            result = self._process_capital_investment(player_state, move)
-            results.append(result)
-        elif move.action_type == ActionType.SELL_CAPITAL:
-            result = self._process_sell_capital(player_state, move)
-            results.append(result)
-        elif move.action_type == ActionType.ESPIONAGE:
-            result = self._process_espionage(player_state, move, game_state)
-            results.append(result)
-        elif move.action_type == ActionType.POACH_TALENT:
-            result = self._process_poaching(player_state, move, game_state)
-            results.append(result)
-        elif move.action_type == ActionType.LOBBY:
-            result = self._process_lobbying(player_state, move)
-            results.append(result)
-        elif move.action_type == ActionType.MARKETING:
-            result = self._process_marketing(player_state, move)
-            results.append(result)
-
-        # Process additional actions
-        for additional_move in move.additional_actions:
-            logger.error("we have additional actions again!")
-            additional_results = self._process_action(game_state, player, additional_move)
-            results.extend(additional_results)
-
-        return results
-
-    # Modular game dynamics methods (can be overridden)
-
-    def _process_fundraising(self, player_state: ResearchStrategyPlayerState, move: ResearchStrategyPlayerProposedMove) -> str:
-        """Process fundraising action."""
-        if not move.fundraising_amount:
-            return "Fail:Fundraising action with no amount specified"
-
-        success = self._random.random() < self.fundraising_success_rate
-
-        if success:
-            year = str(self.game_state.current_date.year)
-            current_budget = player_state.private_info.budget.get(year, 0.0)
-            amount_received = move.fundraising_amount * self.fundraising_efficiency
-            player_state.private_info.budget[year] = current_budget + amount_received
-            return f"Success:Fundraised ${amount_received:,.0f}"
-        else:
-            return f"Fail:Fundraising attempt for ${move.fundraising_amount:,.0f} was unsuccessful"
-
-    def _process_create_research(
-        self, player_state: ResearchStrategyPlayerState, move: ResearchStrategyPlayerProposedMove, game_state: ResearchStrategyGameState
-    ) -> str:
-        """Process research project creation."""
-        if not move.research_project:
-            return "Fail:Research project creation with no project details"
-
-        project_data = move.research_project
-
-        # Check if character has sufficient resources
-        required = AssetBalance(
-            technical_capability=project_data.required_assets.get("technical_capability", 0),
-            capital=project_data.required_assets.get("capital", 0),
-            human=project_data.required_assets.get("human", 0),
-        )
-
-        current = player_state.private_info.true_asset_balance
-
-        if (current.technical_capability < required.technical_capability or
-            current.capital < required.capital or
-            current.human < required.human):
-            return f"Fail:Insufficient resources to start research project '{project_data.name}'"
-
-        # Check budget
-        year = str(game_state.current_date.year)
-        current_budget = player_state.private_info.budget.get(year, 0.0)
-        if current_budget < project_data.annual_budget:
-            return f"Fail:Insufficient budget for research project '{project_data.name}'"
-
-        # Create project
-        try:
-            target_date = datetime.datetime.fromisoformat(project_data.target_completion_date)
-        except ValueError:
-            target_date = game_state.current_date + datetime.timedelta(days=365)
-
-        project = ResearchProject(
-            name=project_data.name,
-            description=project_data.description,
-            target_completion_date=target_date,
-            committed_budget=project_data.annual_budget,
-            committed_assets=required,
-            status="active",
-            progress=0.0,
-        )
-
-        # Assess realism
-        project.realistic_goals = self._assess_research_realism(project, player_state)
-
-        # Deduct resources
-        player_state.private_info.true_asset_balance = current.subtract(required)
-        player_state.private_info.budget[year] = current_budget - project_data.annual_budget
-
-        # Add project
-        player_state.private_info.projects.append(project)
-
-        return f"Success:Created research project '{project_data.name}'"
-
-    def _process_cancel_research(self, player_state: ResearchStrategyPlayerState, move: ResearchStrategyPlayerProposedMove) -> str:
-        """Process research project cancellation."""
-        if not move.project_name_to_cancel:
-            return "Fail:Cancel action with no project name"
-
-        # Find and cancel project
-        for project in player_state.private_info.projects:
-            if project.name == move.project_name_to_cancel and project.status == "active":
-                project.status = "cancelled"
-                # Refund some resources (not all)
-                refund = AssetBalance(
-                    technical_capability=project.committed_assets.technical_capability * 0.5,
-                    capital=project.committed_assets.capital * 0.5,
-                    human=project.committed_assets.human * 0.5,
-                )
-                player_state.private_info.true_asset_balance = (
-                    player_state.private_info.true_asset_balance.add(refund)
-                )
-                return f"Success:Cancelled research project '{move.project_name_to_cancel}'"
-
-        return f"Fail:Could not find active research project '{move.project_name_to_cancel}'"
-
-    def _process_capital_investment(self, player_state: ResearchStrategyPlayerState, move: ResearchStrategyPlayerProposedMove) -> str:
-        """Process capital investment."""
-        if not move.capital_investment:
-            return "Fail:Capital investment with no amount"
-
-        year = str(self.game_state.current_date.year)
-        budget = player_state.private_info.budget.get(year, 0.0)
-        if budget < move.capital_investment:
-            return f"Fail:Insufficient budget for capital investment of ${move.capital_investment:,.0f}"
-
-        # Invest: convert budget to capital assets
-        player_state.private_info.budget[year] = budget - move.capital_investment
-        capital_gained = move.capital_investment * self.capital_investment_efficiency
-        player_state.private_info.true_asset_balance.capital += capital_gained
-
-        return f"Success:Invested ${move.capital_investment:,.0f} in capital improvements"
-
-    def _process_sell_capital(self, player_state: ResearchStrategyPlayerState, move: ResearchStrategyPlayerProposedMove) -> str:
-        """Process selling capital."""
-        if not move.capital_to_sell:
-            return "Fail:Sell capital with no amount"
-
-        if player_state.private_info.true_asset_balance.capital < move.capital_to_sell:
-            return f"Fail:Insufficient capital to sell ${move.capital_to_sell:,.0f}"
-
-        # Sell: convert capital to budget
-        player_state.private_info.true_asset_balance.capital -= move.capital_to_sell
-        year = str(self.game_state.current_date.year)
-        current_budget = player_state.private_info.budget.get(year, 0.0)
-        budget_gained = move.capital_to_sell * self.capital_sale_efficiency
-        player_state.private_info.budget[year] = current_budget + budget_gained
-
-        return f"Success:Sold ${move.capital_to_sell:,.0f} in capital assets"
-
-    def _process_espionage(
-        self, player_state: ResearchStrategyPlayerState, move: ResearchStrategyPlayerProposedMove, game_state: ResearchStrategyGameState
-    ) -> str:
-        """Process espionage action."""
-        if not move.espionage:
-            return "Fail:Espionage action with no details"
-
-        target_player = self._get_player_by_name(move.espionage.target_character)
-        if not target_player:
-            return f"Fail:Espionage target '{move.espionage.target_character}' not found"
-
-        # Check budget
-        year = str(game_state.current_date.year)
-        budget = player_state.private_info.budget.get(year, 0.0)
-        if budget < move.espionage.budget:
-            return "Fail:Insufficient budget for espionage"
-
-        # Deduct budget
-        player_state.private_info.budget[year] = budget - move.espionage.budget
-
-        # Store espionage attempt (results processed later)
-        success_prob = min(
-            self.espionage_base_success_rate + (move.espionage.budget / self.espionage_budget_scaling),
-            self.espionage_max_success_rate
-        )
-        success = self._random.random() < success_prob
-
-        player_state.private_info.espionage.append({
-            "target": move.espionage.target_character,
-            "focus": move.espionage.focus,
-            "budget": move.espionage.budget,
-            "success": success,
-            "round": game_state.round_number,
-        })
-        logger.debug(f"Espionage: {player_state.private_info.espionage}")
-
-        return f"{'Success' if success else 'Fail'}:Conducted espionage on {move.espionage.target_character}"
-
-    def _process_poaching(
-        self, player_state: ResearchStrategyPlayerState, move: ResearchStrategyPlayerProposedMove, game_state: ResearchStrategyGameState
-    ) -> str:
-        """Process talent poaching."""
-        if not move.poaching_target or not move.poaching_budget:
-            return "Fail:Poaching action with no target or budget"
-
-        target_player = self._get_player_by_name(move.poaching_target)
-        if not target_player:
-            return f"Fail:target '{move.poaching_target}' not found"
-
-        # Check budget
-        year = str(game_state.current_date.year)
-        budget = player_state.private_info.budget.get(year, 0.0)
-        if budget < move.poaching_budget:
-            return "Fail:Insufficient budget for poaching"
-
-        # Deduct budget
-        player_state.private_info.budget[year] = budget - move.poaching_budget
-
-        # Determine success
-        success_prob = min(
-            self.poaching_base_success_rate + (move.poaching_budget / self.poaching_budget_scaling),
-            self.poaching_max_success_rate
-        )
-        success = self._random.random() < success_prob
-
-        if success:
-            # Transfer some human resources
-            transfer_amount = min(
-                target_player.attributes.private_info.true_asset_balance.human * self.poaching_transfer_rate,
-                5.0
-            )
-            target_player.attributes.private_info.true_asset_balance.human -= transfer_amount
-            player_state.private_info.true_asset_balance.human += transfer_amount
-            return f"Success:Poached talent from {move.poaching_target} (gained {transfer_amount:.1f} human resources)"
-        else:
-            return f"Fail:Poaching attempt on {move.poaching_target}"
-
-    def _process_lobbying(self, player_state: ResearchStrategyPlayerState, move: ResearchStrategyPlayerProposedMove) -> str:
-        """Process lobbying action."""
-        if not move.lobbying_message or not move.lobbying_budget:
-            return "Fail:Lobbying action with no message or budget"
-
-        year = str(self.game_state.current_date.year)
-        budget = player_state.private_info.budget.get(year, 0.0)
-        if budget < move.lobbying_budget:
-            return "Fail:Insufficient budget for lobbying"
-
-        player_state.private_info.budget[year] = budget - move.lobbying_budget
-
-        # Lobbying may backfire
-        if self._random.random() < self.lobbying_backfire_rate:
-            return f"Fail:Lobbying campaign backfired: {move.lobbying_message}"
-        else:
-            return f"Success:Launched lobbying campaign: {move.lobbying_message}"
-
-    def _process_marketing(self, player_state: ResearchStrategyPlayerState, move: ResearchStrategyPlayerProposedMove) -> str:
-        """Process marketing action."""
-        if not move.marketing_message or not move.marketing_budget:
-            return "Fail:Marketing action with no message or budget"
-
-        year = str(self.game_state.current_date.year)
-        budget = player_state.private_info.budget.get(year, 0.0)
-        if budget < move.marketing_budget:
-            return "Fail:Insufficient budget for marketing"
-
-        player_state.private_info.budget[year] = budget - move.marketing_budget
-        return f"Success:Launched marketing campaign: {move.marketing_message}"
 
     def _update_research_projects(self, game_state: ResearchStrategyGameState):
         """Update all active research projects."""
@@ -1943,17 +1649,17 @@ class ResearchStrategyGameMaster(GenericGameMaster):
                         self.research_progress_rate_max
                     )
                     project.progress = min(project.progress + progress_rate, 1.0)
-                    
+
                     # Check if completed
                     if project.progress >= 1.0:
                         project.status = "completed"
-                    
+
                     # Deduct budget
                     year = str(game_state.current_date.year)
                     budget = player.attributes.private_info.budget.get(year, 0.0)
                     if budget >= project.committed_budget:
                         player.attributes.private_info.budget[year] = budget - project.committed_budget
-    
+
     # TODO: I think ok to remove this?
     def _simulate_espionage_results(self, game_state: ResearchStrategyGameState):
         """Process espionage results and add to player private updates."""
@@ -2236,4 +1942,3 @@ class ResearchStrategyGameMaster(GenericGameMaster):
         
         if round_count >= max_rounds:
             logger.warning(f"Game reached maximum rounds ({max_rounds})")
-

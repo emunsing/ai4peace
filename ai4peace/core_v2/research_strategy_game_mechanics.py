@@ -804,49 +804,43 @@ class ResearchStrategyGameMaster(GenericGameMaster):
     def get_player_move(self, player: ResearchStrategyPlayer) -> List[ResearchStrategyPlayerProposedMove]:
         """Get validated move from player, with correction loop."""
         # NOTE: for now, loop through all proposed moves once and allow the agent one retry for any invalid move
-        max_attempts = 1
+        max_attempts = 3
         
         # Build context for player
         game_state_summary = self._create_game_state_summary()
         private_updates = self._create_private_updates_summary(player)
         
+        # TODO: Do we want an outer validation loop in case of general JSON failures?
+        moves_to_validate = player.propose_actions_with_context(
+            game_state_summary=game_state_summary,
+            private_updates=private_updates,
+            current_date=self.game_state.current_date,
+            round_number=self.game_state.round_number,
+        )
+
         valid_moves = []
-        for attempt in range(max_attempts):
-            moves_to_validate = player.propose_actions_with_context(
-                game_state_summary=game_state_summary,
-                private_updates=private_updates,
-                current_date=self.game_state.current_date,
-                round_number=self.game_state.round_number,
-            )
-            
-            for candidate_move in moves_to_validate:
-                if not candidate_move.action_type:
-                    # no action type means the move is invalid/not one we recognize yet
-                    logger.debug("empty move")
+        n_attempts = 0
+        while len(moves_to_validate) > 0 and n_attempts < max_attempts:
+            n_attempts += 1
+            current_move_index = 0
+            while current_move_index < len(moves_to_validate):
+                candidate_move = moves_to_validate[current_move_index]
+
+                validation_error = self._validate_move(player, candidate_move)
+
+                if validation_error is None:
+                    candidate_move = moves_to_validate.pop(current_move_index)  # Because the list shrinks, don't need to update the index
+                    valid_moves.append(candidate_move)
                 else:
-                    validation_error = self._validate_move(player, candidate_move)
-                    # no validation error means the move is valid
-                    if validation_error is None:
-                        valid_moves.append(candidate_move)
-                    else:
-                        # Second chance: GM can orrect the move and let the agent try again
-                        correction = MoveCorrectionMessage(
-                            original_move=candidate_move,
-                            error_message=validation_error
-                        )
-                        logger.debug("Requesting correction: "+ validation_error)
-                        retry_moves = player.correct_moves(correction, self.game_state.round_number)
-                        # NOTE: we only need the first move here
-                        retry_move = retry_moves[0]
-                        if not retry_move.action_type:
-                            logger.debug("empty move")
-                        else:
-                            second_validate_error = self._validate_move(player, retry_move)
-                            if second_validate_error is None:
-                                # now we have a fixed move!
-                                valid_moves.append(retry_move)
-                            else:
-                                logger.debug("move correction feedback offered but still not fixed")
+                    correction = MoveCorrectionMessage(
+                        original_move=candidate_move,
+                        error_message=validation_error
+                    )
+                    logger.debug("Requesting correction: "+ validation_error)
+                    updated_move = player.correct_moves(correction)
+                    updated_move = candidate_move
+                    moves_to_validate[current_move_index] = updated_move
+                    current_move_index += 1
         return valid_moves
     
     def _validate_move(self, player: ResearchStrategyPlayer, move: ResearchStrategyPlayerProposedMove) -> Optional[str]:

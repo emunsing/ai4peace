@@ -35,7 +35,7 @@ logging.getLogger("httpx").setLevel(logging.WARNING)
 )
 @click.option(
     "--log-file",
-    default=f"transcript_{datetime.datetime.now().replace(microsecond=0).isoformat()}.jsonl",
+    default=f"v2_transcript_{datetime.datetime.now().replace(microsecond=0).isoformat()}.jsonl",
     type=str,
     help="Save the game transcript to this file",
 )

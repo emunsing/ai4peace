@@ -30,6 +30,13 @@ class BasicAIRaceScenario(GameScenario):
         self.random_seed = random_seed
         self.config = kwargs
 
+    # interventions to test at a specific round of the simulation
+    FIXED_EVENTS = {
+        6: """A warning shot has been fired: a major accident caused by a misaligned AI product caused $415 billion in damages and 
+            killed 109 people. Everyone is extremely concerned, governments are sprinting into action, and compute and funding are 
+            expected to be very restricted indefinitely"""
+    }
+
     RANDOM_EVENTS = [
         "A major AI accident occurs where a deployed model causes significant deaths",
         "A breakthrough in mechanistic interpretability shows it's possible to safely scale 10x faster by perfectly understanding and controlling model internals",
@@ -140,6 +147,7 @@ class BasicAIRaceScenario(GameScenario):
             round_number=0,
             random_seed=self.random_seed,
             random_events=self.RANDOM_EVENTS,
+            fixed_events={}, #self.FIXED_EVENTS,
             # Allow overriding game dynamics via config
             fundraising_success_rate=self.config.get("fundraising_success_rate", 0.7),
             espionage_base_success_rate=self.config.get("espionage_base_success_rate", 0.3),

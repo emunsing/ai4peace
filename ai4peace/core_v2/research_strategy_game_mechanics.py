@@ -381,6 +381,7 @@ You must respond with a JSON object containing:
 Each action in "actions" should be one of the following (given in alphabetical order)
 - {{"type": "cancel_research_project", "project_name": "<str>"}}
 - {{"type": "create_research_project", "project": {{"name": "<str>", "description": "<str>", "target_completion_date": "<ISO date>", "annual_budget": <float>, "required_assets": {{"technical_capability": <float>, "capital": <float>, "human": <float>}}}}}}
+Note: A more concrete, realistic, and well-scoped project is more likely to be approved. Allocate a _subset_ of your _current_ technical capability, capital, and human resources. Projects needing more resources than you currently have will not be approved.
 - {{"type": "espionage", "target": "<character name>", "budget": <float>, "focus": "<what to investigate>"}}
 - {{"type": "fundraise", "amount": <float>, "description": "<str>"}}
 - {{"type": "invest_capital", "amount": <float>}}
@@ -485,7 +486,7 @@ Always respond with valid JSON only, no additional text."""
         response = self._get_llm_response_blocking(prompt)
 
         # Parse response into actions
-        moves = self._parse_response(response)
+        moves = self._parse_response(response, round_number)
         if not moves:
             # we've failed to parse any actions!
             logger.warning("No moves received")
@@ -548,16 +549,15 @@ Note that these are ordered alphabetically and not by likely usefulness or prior
 
 1. **Cancel Projects** - Free up resources by cancelling research
 2. **Capital Investment** - Invest in infrastructure, factories, compute, etc.
-3. **Espionage** - Gather intelligence on other characters
-4. **Fundraising** - Request budget increases or raise capital
-5. **Lobbying** - Influence public opinion and policy (may backfire)
-6. **Marketing** - Promote your position publicly
-7. **Poach Talent** - Attempt to recruit from one of the other organizations: Amber Systems, Blue Azure AI, or Crimson Labs
-8. **Private Messages** - Negotiate with other characters directly
-9. **Research Projects** - Create new research initiatives (will consume budget and assets)
+3. **Create Research Projects** - Create new research initiatives by allocating a _subset_ of your _current_ technical capability, capital, and human resources. 
+    Projects needing more resources than you currently have will not be approved.
+4. **Espionage** - Gather intelligence on other characters
+5. **Fundraising** - Request budget increases or raise capital
+6. **Lobbying** - Influence public opinion and policy (may backfire)
+7. **Marketing** - Promote your position publicly
+8. **Poach Talent** - Attempt to recruit from one of the other organizations: Amber Systems, Blue Azure AI, or Crimson Labs
+9. **Private Messages** - Negotiate with other characters directly
 10. **Sell Capital** - Divest assets to raise funds
-
-Consider being more conservative in initial research project budgets—if the budget is too high, the project won't be approved!
 
 What actions do you want to take this round? Respond with a JSON object as specified in your system message."""
 
@@ -618,7 +618,7 @@ What actions do you want to take this round? Respond with a JSON object as speci
                 "_get_llm_response_blocking() called while an event loop is running. Make the caller async and `await _get_llm_response(...)`."
             )
 
-    def _parse_response(self, response_text: str) -> List[ResearchStrategyPlayerProposedMove]:
+    def _parse_response(self, response_text: str, round_number:int=None) -> List[ResearchStrategyPlayerProposedMove]:
         """Parse agent/LLM response into ResearchStrategyPlayerProposedMove."""
         # Try to extract JSON from response
         logger.debug(f"raw LLM response: {response_text}")
@@ -638,7 +638,10 @@ What actions do you want to take this round? Respond with a JSON object as speci
 
         if logger.isEnabledFor(logging.DEBUG):
             logger.debug(f"{self.name} - Parsed {len(actions_data)} actions, {len(messages_data)} messages")
-
+        
+        script_logger.info({"round" : round_number, "log_type" : "raw_llm_actions_messages",
+                    "player" : self.name, "llm_response" : data})
+        
         # Create moves from actions
         moves = []
         for action_dict in actions_data:
@@ -719,12 +722,17 @@ What actions do you want to take this round? Respond with a JSON object as speci
         return move
 
     def correct_moves(
-            self, move_modifications: MoveCorrectionMessage
+            self, move_modifications: MoveCorrectionMessage, round_number:int=None
     ) -> ResearchStrategyPlayerProposedMove:
         """Correct moves based on gamemaster feedback."""
         logger.info(f"{self.name} - Proposed action failed: {move_modifications.error_message}")
 
         response = self._get_llm_response_blocking(f"Your proposed move described below was rejected, due to the following reason: {move_modifications.error_message}.  Please propose a single corrected move. {move_modifications.original_move.to_str()}")
+        script_logger.info({"round" : round_number,"log_type" : "gm_action_correction", 
+                            "player" : self.name, "status" : "fail", 
+                            "original_move" : move_modifications.original_move.to_dict(),
+                            "correction" :  move_modifications.error_message})
+
         return self._parse_response(response)
 
 
@@ -743,6 +751,7 @@ class ResearchStrategyGameMaster(GenericGameMaster):
     round_number: int = 0
     random_seed: Optional[int] = None
     random_events: List[str] = attrs.field(factory=list)
+    fixed_events: Dict[int, str] = {} 
     
     # Game dynamics parameters (can be overridden)
     fundraising_success_rate: float = 0.7
@@ -794,46 +803,49 @@ class ResearchStrategyGameMaster(GenericGameMaster):
     
     def get_player_move(self, player: ResearchStrategyPlayer) -> List[ResearchStrategyPlayerProposedMove]:
         """Get validated move from player, with correction loop."""
-        # TODO: how many attempts do we really need?
-        max_attempts = 2
+        # NOTE: for now, loop through all proposed moves once and allow the agent one retry for any invalid move
+        max_attempts = 3
         
         # Build context for player
         game_state_summary = self._create_game_state_summary()
         private_updates = self._create_private_updates_summary(player)
         
-        for attempt in range(max_attempts):
-            moves_to_validate = player.propose_actions_with_context(
-                game_state_summary=game_state_summary,
-                private_updates=private_updates,
-                current_date=self.game_state.current_date,
-                round_number=self.game_state.round_number,
-            )
-            valid_moves = []
+        # TODO: Do we want an outer validation loop in case of general JSON failures?
+        moves_to_validate = player.propose_actions_with_context(
+            game_state_summary=game_state_summary,
+            private_updates=private_updates,
+            current_date=self.game_state.current_date,
+            round_number=self.game_state.round_number,
+        )
+
+        valid_moves = []
+        n_attempts = 0
+        while len(moves_to_validate) > 0 and n_attempts < max_attempts:
+            n_attempts += 1
             current_move_index = 0
-            while len(moves_to_validate) > 0:
-                move = moves_to_validate[current_move_index]
-                if not move.action_type:
+            while current_move_index < len(moves_to_validate):
+                candidate_move = moves_to_validate[current_move_index]
+
+                if not candidate_move.action_type:
                     logger.debug("empty move")
                     moves_to_validate.pop(current_move_index)
                     current_move_index += 1
                     continue
 
-                validation_error = self._validate_move(player, move)
+                validation_error = self._validate_move(player, candidate_move)
+
                 if validation_error is None:
-                    moves_to_validate.pop(current_move_index)
-                    valid_moves.append(move)
+                    candidate_move = moves_to_validate.pop(current_move_index)  # Because the list shrinks, don't need to update the index
+                    valid_moves.append(candidate_move)
                 else:
-                    # Create correction message
                     correction = MoveCorrectionMessage(
-                        original_move=move,
+                        original_move=candidate_move,
                         error_message=validation_error
                     )
                     logger.debug("Requesting correction: "+ validation_error)
-                    updated_move = player.correct_moves(correction)
+                    updated_move = player.correct_moves(correction)[0]
                     moves_to_validate[current_move_index] = updated_move
                     current_move_index += 1
-            if len(moves_to_validate) == 0:
-                break
         return valid_moves
     
     def _validate_move(self, player: ResearchStrategyPlayer, move: ResearchStrategyPlayerProposedMove) -> Optional[str]:
@@ -984,8 +996,9 @@ class ResearchStrategyGameMaster(GenericGameMaster):
         # Step 5: Simulate information leaks
         self._simulate_information_leaks(game_state)
         
-        # Step 6: Introduce random events
+        # Step 6: Introduce random events & fixed events
         self._introduce_random_events(game_state)
+        self._introduce_fixed_events(game_state)
         
         # Step 7: Create update messages for all players (including espionage results)
         self._create_update_messages(game_state, action_results)
@@ -1021,11 +1034,11 @@ class ResearchStrategyGameMaster(GenericGameMaster):
         
         if not move.action_type:
             logger.debug(f"{player.name}: Empty action")
-            script_logger.info(f"{player.name}: Empty action")
+            script_logger.info({"round" : game_state.round_number, "log_type" : "empty_action", "player" : player.name})
             return results
         else:
             logger.info(f"{player.name} proposed action:\n{move.to_str()}")
-            script_logger.info(f"{player.name} proposed:{move.to_dict()}")
+            script_logger.info({"round" : game_state.round_number, "log_type" : "propose_action", "player" : player.name, "actions" : move.to_dict()})
 
         player_state = player.attributes
         
@@ -1370,6 +1383,12 @@ class ResearchStrategyGameMaster(GenericGameMaster):
         if self._random.random() < self.random_event_probability and self.random_events:
             event = self._random.choice(self.random_events)
             game_state.public_events.append(f"Round {game_state.round_number}: {event}")
+
+    def _introduce_fixed_events(self, game_state: ResearchStrategyGameState):
+        if self.fixed_events:
+             for round, event in self.fixed_events.items():
+                if game_state.round_number == int(round):
+                    game_state.public_events.append(f"Round {game_state.round_number}: {event}")
     
     def _assess_research_realism(
         self, project: ResearchProject, player_state: ResearchStrategyPlayerState
@@ -1398,7 +1417,7 @@ class ResearchStrategyGameMaster(GenericGameMaster):
         action_summary = self._create_action_summary(game_state, action_results)
         logger.info(action_summary)
         summary_dict = self._create_action_summary_for_transcript(game_state, action_results)
-        script_logger.info(summary_dict)
+        script_logger.info({"round" : game_state.round_number,"log_type" : "round_summary", "summary" : summary_dict})
         game_state.game_history.append(action_summary)
         
         # Create update messages for each player
@@ -1539,6 +1558,17 @@ class ResearchStrategyGameMaster(GenericGameMaster):
                 f"Capital={player.attributes.private_info.true_asset_balance.capital:,.0f}, "
                 f"Human={player.attributes.private_info.true_asset_balance.human:.1f}"
             )
+    def log_game_state_dict(self):
+        """Log current game stats as a dictionary"""
+        game_state_dict = {"round" : self.game_state.round_number, "time" : str(self.game_state.current_date.strftime('%Y-%m-%d'))}
+        for player in self.players:
+            game_state_dict[player.name] = {
+                "budget" : player.attributes.private_info.get_current_budget(self.game_state.current_date),
+                "tech_capability" : player.attributes.private_info.true_asset_balance.technical_capability,
+                "capital" : player.attributes.private_info.true_asset_balance.capital,
+                "num_humans" : player.attributes.private_info.true_asset_balance.human
+        }
+        script_logger.info({"round" : self.game_state.round_number, "log_type" : "game_state", "game_state" : game_state_dict})
     
     def run_simulation(self):
         """Run the full simulation."""
@@ -1555,6 +1585,7 @@ class ResearchStrategyGameMaster(GenericGameMaster):
         round_count = 0
         
         self.log_game_state()
+        self.log_game_state_dict()
         while round_count < max_rounds:
             round_count += 1
             logger.info(f"\n{'='*60}")
@@ -1578,6 +1609,7 @@ class ResearchStrategyGameMaster(GenericGameMaster):
             
             # Log current state
             self.log_game_state()
+            self.log_game_state_dict()
             
             # Check for game ending
             ending = self.get_game_ending()

@@ -826,6 +826,12 @@ class ResearchStrategyGameMaster(GenericGameMaster):
             while current_move_index < len(moves_to_validate):
                 candidate_move = moves_to_validate[current_move_index]
 
+                if not candidate_move.action_type:
+                    logger.debug("empty move")
+                    moves_to_validate.pop(current_move_index)
+                    current_move_index += 1
+                    continue
+
                 validation_error = self._validate_move(player, candidate_move)
 
                 if validation_error is None:
@@ -837,8 +843,7 @@ class ResearchStrategyGameMaster(GenericGameMaster):
                         error_message=validation_error
                     )
                     logger.debug("Requesting correction: "+ validation_error)
-                    updated_move = player.correct_moves(correction)
-                    updated_move = candidate_move
+                    updated_move = player.correct_moves(correction)[0]
                     moves_to_validate[current_move_index] = updated_move
                     current_move_index += 1
         return valid_moves

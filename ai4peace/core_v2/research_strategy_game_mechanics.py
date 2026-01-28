@@ -1965,7 +1965,7 @@ class ResearchStrategyGameMaster(GenericGameMaster):
         }
         script_logger.info({"round" : self.game_state.round_number, "log_type" : "game_state", "game_state" : game_state_dict})
 
-    async def run_simulation(self):
+    async def run_simulation(self, max_rounds=3):
         """Run the full simulation."""
         logger.info("Starting research strategy simulation")
         logger.info(f"Players: {[p.name for p in self.players]}")
@@ -1975,8 +1975,7 @@ class ResearchStrategyGameMaster(GenericGameMaster):
             update_msg = self.create_player_update_messages(player)
             player.update_state(update_msg)
             self.current_gamemaster_updates[player.name] = update_msg
-        
-        max_rounds = 3 
+
         round_count = 0
         
         self.log_game_state()

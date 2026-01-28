@@ -1647,7 +1647,7 @@ class ResearchStrategyGameMaster(GenericGameMaster):
 
         max_attempts = self.max_attempts
         # TODO: Do we want an outer validation loop in case of general JSON failures?
-        moves_to_validate = player.propose_actions(
+        moves_to_validate = await player.propose_actions(
             game_state_summary=game_state_summary,
             private_updates=private_updates,
             current_date=self.game_state.current_date,

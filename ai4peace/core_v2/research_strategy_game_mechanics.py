@@ -1644,16 +1644,20 @@ class ResearchStrategyGameMaster(GenericGameMaster):
 
         # get all player names
         other_player_names = [p.name for p in self.players if p.name != player.name]
-        
-        for attempt in range(self.max_attempts):
-            moves_to_validate = await player.propose_actions(
-                game_state_summary=game_state_summary,
-                private_updates=private_updates,
-                current_date=self.game_state.current_date,
-                round_number=self.game_state.round_number,
-                other_player_names=other_player_names
-            )
-            valid_moves = []
+
+        max_attempts = self.max_attempts
+        # TODO: Do we want an outer validation loop in case of general JSON failures?
+        moves_to_validate = player.propose_actions_with_context(
+            game_state_summary=game_state_summary,
+            private_updates=private_updates,
+            current_date=self.game_state.current_date,
+            round_number=self.game_state.round_number,
+        )
+
+        valid_moves = []
+        n_attempts = 0
+        while len(moves_to_validate) > 0 and n_attempts < max_attempts:
+            n_attempts += 1
             current_move_index = 0
             while len(moves_to_validate) > 0 and current_move_index < len(moves_to_validate):
                 candidate_move = moves_to_validate[current_move_index]
@@ -1662,15 +1666,16 @@ class ResearchStrategyGameMaster(GenericGameMaster):
                                                         players=self.players,
                                                         gamemaster=self)
                 if validation_error is None:
-                    valid_move = moves_to_validate.pop(current_move_index)  # Because the list shrinks, don't need to update the index
+                    valid_move = moves_to_validate.pop(
+                        current_move_index)  # Because the list shrinks, don't need to update the index
                     valid_moves.append(valid_move)
                 else:
                     correction = MoveCorrectionMessage(
                         original_move=candidate_move,
                         error_message=validation_error
                     )
-                    logger.debug("Requesting correction: "+ validation_error)
-                    updated_move = await player.correct_moves(correction)
+                    logger.debug("Requesting correction: " + validation_error)
+                    updated_move = player.correct_moves(correction)[0]
                     moves_to_validate[current_move_index] = updated_move
                     current_move_index += 1
         return valid_moves

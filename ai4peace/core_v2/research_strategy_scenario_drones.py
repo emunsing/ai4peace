@@ -6,11 +6,10 @@ from typing import Dict, List, Optional, Any
 from .new_architecture_draft import GameScenario
 from .research_strategy_game_mechanics import (ResearchStrategyGameMaster, ResearchStrategyPlayer, ResearchStrategyGameState,
                                                ResearchStrategyPlayerState,
-                                               AssetBalance,
                                                PrivateInfo,
                                                PublicView
                                                )
-
+from . import AssetBalance
 
 
 class DroneArmsControlScenario(GameScenario):

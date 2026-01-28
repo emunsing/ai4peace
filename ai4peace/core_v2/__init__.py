@@ -15,18 +15,13 @@ from .new_architecture_draft import (
 from .research_strategy_game_mechanics import (ResearchStrategyGameMaster,
                                                ResearchStrategyGameState,
                                                ResearchStrategyPlayerState,
-                                               AssetBalance,
-                                               ResearchProject,
-                                               Message,
                                                PrivateInfo,
                                                PublicView,
                                                ResearchStrategyPlayer,
                                                ResearchStrategyGamemasterUpdateMessage,
-                                               ResearchStrategyPlayerStateUpdates,
-                                               ActionType,
-                                               EspionageAction,
-                                               MessageAction,
                                                )
+from .research_strategy_actions import ActionType, EspionageAction, MessageAction, AssetBalance, Message, \
+    ResearchProject, ResearchStrategyPlayerStateUpdates
 
 from .research_strategy_scenario_drones import DroneArmsControlScenario
 from .research_strategy_scenario_basic_ai_race import BasicAIRaceScenario

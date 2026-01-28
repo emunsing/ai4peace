@@ -2,6 +2,7 @@ import datetime
 import click
 import json
 import logging
+import asyncio
 from typing import Optional
 from ai4peace.core.simulation_runner import load_scenario_class, create_llm_client
 from ai4peace.core_v2.new_architecture_draft import GameScenario
@@ -77,7 +78,8 @@ def main(
     scenario_instance = scenario_class(llm_client=llm_client, **kwargs)
 
     gamemaster = scenario_instance.get_game_master()
-    gamemaster.run_simulation()
+    asyncio.run(gamemaster.run_simulation())
+    # gamemaster.run_simulation()
 
 if __name__ == "__main__":
     main()

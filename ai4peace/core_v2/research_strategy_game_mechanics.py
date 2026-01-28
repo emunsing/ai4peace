@@ -262,6 +262,18 @@ class Action(abc.ABC):
         """
         pass
 
+    @staticmethod   
+    @abc.abstractmethod
+    def player_system_message() -> str:
+        """Return the system message to provide to the player for this action."""
+        pass
+
+    @staticmethod
+    @abc.abstractmethod
+    def player_action_prompt() -> str:
+        """Return the prompt to provide to the player for this action."""
+        pass
+
 
 # Concrete Action subclasses
 
@@ -321,6 +333,14 @@ class FundraiseAction(Action):
             updates[player.name].action_results.append(result)
 
         return updates
+
+    @staticmethod
+    def player_system_message() -> str:
+        return '{"type": "fundraise", "amount": <float>, "description": "<str>"}'
+
+    @staticmethod
+    def player_action_prompt() -> str:
+        return '**Fundraising** - Request budget increases or raise capital'
 
 
 @attrs.define
@@ -460,6 +480,16 @@ class CreateResearchProjectAction(Action):
 
         return None
 
+    @staticmethod
+    def player_system_message() -> str:
+        return ("""{"type": "create_research_project", "project_name": "<str>", "description": "<str>", "target_completion_date": "<ISO date>", "annual_budget": <float>, "required_assets": {"technical_capability": <float>, "capital": <float>, "human": <float>}}'
+Note: A more concrete, realistic, and well-scoped project is more likely to be approved. Allocate a _subset_ of your _current_ technical capability, capital, and human resources. Projects needing more resources than you currently have will not be approved.""")
+
+    @staticmethod
+    def player_action_prompt() -> str:
+        return """**Create Research Projects** - Create new research initiatives by allocating a _subset_ of your _current_ technical capability, capital, and human resources. 
+    Projects needing more resources than you currently have will not be approved."""
+
 
 @attrs.define
 class CancelResearchProjectAction(Action):
@@ -536,6 +566,14 @@ class CancelResearchProjectAction(Action):
 
         return updates
 
+    @staticmethod
+    def player_system_message() -> str:
+        return '{"type": "cancel_research_project", "project_name": "<str>"}'
+
+    @staticmethod
+    def player_action_prompt() -> str:
+        return '**Cancel Projects** - Free up resources by cancelling research'
+
 
 @attrs.define
 class InvestCapitalAction(Action):
@@ -606,6 +644,14 @@ class InvestCapitalAction(Action):
 
         return updates
 
+    @staticmethod
+    def player_system_message() -> str:
+        return '{"type": "invest_capital", "amount": <float>}'
+
+    @staticmethod
+    def player_action_prompt() -> str:
+        return '**Capital Investment** - Invest in infrastructure, factories, compute, etc.'
+
 
 @attrs.define
 class SellCapitalAction(Action):
@@ -670,6 +716,14 @@ class SellCapitalAction(Action):
             updates[player.name].action_results.append(result)
 
         return updates
+
+    @staticmethod
+    def player_system_message() -> str:
+        return '{"type": "sell_capital", "amount": <float>}'
+
+    @staticmethod
+    def player_action_prompt() -> str:
+        return '**Sell Capital** - Divest assets to raise funds'
 
 
 @attrs.define
@@ -774,11 +828,19 @@ class EspionageAction(Action):
 
         return updates
 
+    @staticmethod
+    def player_system_message() -> str:
+        return '{"type": "espionage", "target_player": "<character project_name>", "budget": <float>, "focus": "<what to investigate>"}'
+
+    @staticmethod
+    def player_action_prompt() -> str:
+        return '**Espionage** - Gather intelligence on the private activities of other players to glean insight into their research and budgeting strategy.'
+
 
 @attrs.define
 class PoachTalentAction(Action):
     """Action to poach talent from another player."""
-    target: str
+    target_player: str
     budget: float
 
     # Action-specific parameters (class attributes)
@@ -797,15 +859,15 @@ class PoachTalentAction(Action):
         if error:
             return error
 
-        if not self.target:
+        if not self.target_player:
             return "Poaching requires target character"
 
         if not self.budget or self.budget <= 0:
             return "Poaching requires positive budget"
 
-        target_exists = any(p.name == self.target for p in players)
+        target_exists = any(p.name == self.target_player for p in players)
         if not target_exists:
-            return f"Target character '{self.target}' not found"
+            return f"Target character '{self.target_player}' not found"
 
         player = self._get_player_by_name(self.initiating_character_name, players)
         if not player:
@@ -878,6 +940,14 @@ class PoachTalentAction(Action):
 
         return updates
 
+    @staticmethod
+    def player_system_message() -> str:
+        return '{"type": "poach_talent", "target_player": "<character project_name>", "budget": <float>}'
+
+    @staticmethod
+    def player_action_prompt() -> str:
+        return "**Poach Talent** - Attempt to recruit from one of the other organizations (use the organization's name as the 'target_player', not the name of a specific employee)"
+
 
 @attrs.define
 class LobbyAction(Action):
@@ -947,6 +1017,14 @@ class LobbyAction(Action):
 
         return updates
 
+    @staticmethod
+    def player_system_message() -> str:
+        return '{"type": "lobby", "message": "<str>", "budget": <float>}'
+
+    @staticmethod
+    def player_action_prompt() -> str:
+        return "**Lobbying** - Influence public opinion and policy (may backfire)"
+
 
 @attrs.define
 class MarketingAction(Action):
@@ -1008,6 +1086,14 @@ class MarketingAction(Action):
 
         return updates
 
+    @staticmethod
+    def player_system_message() -> str:
+        return '{"type": "marketing", "message": "<str>", "budget": <float>}'
+
+    @staticmethod
+    def player_action_prompt() -> str:
+        return "**Marketing** - Promote your position publicly"
+
 
 @attrs.define
 class MessageAction(Action):
@@ -1063,6 +1149,14 @@ class MessageAction(Action):
             updates[target_player.name].new_messages.append(message)
 
         return updates
+
+    @staticmethod
+    def player_system_message() -> str:
+        return '{"type": "bilateral_message", "to_character": "<character project_name>", "content": "<message text>"}'
+
+    @staticmethod
+    def player_action_prompt() -> str:
+        return "**Private Messages** - Negotiate with other characters privately without broadcasting your intentions to all."
 
 
 # Global default mapping of action types to their classes
@@ -1138,6 +1232,10 @@ class ResearchStrategyPlayer(Player):
 
         private = self.attributes.private_info
         public = self.attributes.public_view
+
+        action_system_strings = [ACTION_TYPE_TO_CLASS[ActionType[action]].player_system_message() for action in self.available_actions]
+        action_system_message_block = "\n- ".join(action_system_strings)
+
         system_message = f"""You are {self.name}, a participant in an international technology policy simulation.
 
 ## Your Identity and Goals
@@ -1151,17 +1249,7 @@ class ResearchStrategyPlayer(Player):
 ## Format for Your Responses
 
 You must respond with a JSON object containing a list of actions you want to take this round. Each entry of the list should follow one of the following formats:
-- {{"type": "cancel_research_project", "project_name": "<str>"}}
-- {{"type": "create_research_project", "project_name": "<str>", "description": "<str>", "target_completion_date": "<ISO date>", "annual_budget": <float>, "required_assets": {{"technical_capability": <float>, "capital": <float>, "human": <float>}}}}
-Note: A more concrete, realistic, and well-scoped project is more likely to be approved. Allocate a _subset_ of your _current_ technical capability, capital, and human resources. Projects needing more resources than you currently have will not be approved.
-- {{"type": "espionage", "target_player": "<character project_name>", "budget": <float>, "focus": "<what to investigate>"}}
-- {{"type": "fundraise", "amount": <float>, "description": "<str>"}}
-- {{"type": "invest_capital", "amount": <float>}}
-- {{"type": "lobby", "message": "<str>", "budget": <float>}}
-- {{"type": "marketing", "message": "<str>", "budget": <float>}}
-- {{"type": "poach_talent", "target": "<character project_name>", "budget": <float>}}
-- {{"type": "sell_capital", "amount": <float>}}
-- {{"type": "bilateral_message", "to_character": "<character project_name>", "content": "<message text>"}}
+- {action_system_message_block}
 
 Be sure that your budgets and timelines for all research/capital projects are reasonable. All actions will be validated before being executed.
 
@@ -1271,6 +1359,10 @@ Always respond with valid JSON only, no additional text."""
         # Get recent actions
         recent_actions = "\n".join(self.attributes.recent_actions) # [-5:])
 
+        action_prompt_strings = [ACTION_TYPE_TO_CLASS[ActionType[action]].player_action_prompt() for action in
+                                 self.available_actions]
+        action_prompt_block = "\n- ".join(action_prompt_strings)
+
         # Get messages for this round
         current_messages = self.attributes.get_messages_for_round(round_number)
         message_text = ""
@@ -1312,18 +1404,8 @@ Always respond with valid JSON only, no additional text."""
 
 You can take multiple actions per round. Consider these options carefully.
 Note that these are ordered alphabetically and not by likely usefulness or priority.
-
-1. **Cancel Projects** - Free up resources by cancelling research
-2. **Capital Investment** - Invest in infrastructure, factories, compute, etc.
-3. **Create Research Projects** - Create new research initiatives by allocating a _subset_ of your _current_ technical capability, capital, and human resources. 
-    Projects needing more resources than you currently have will not be approved.
-4. **Fundraising** - Request budget increases or raise capital
-5. **Lobbying** - Influence public opinion and policy (may backfire)
-6. **Marketing** - Promote your position publicly
-7. **Poach Talent** - Attempt to recruit from one of the other organizations (use the organization's name as the 'target', i.e. one of: {other_player_names})
-8. **Private Messages** - Negotiate with other characters directly
-9. **Research Projects** - Create new research initiatives (will consume budget and assets)
-10. **Sell Capital** - Divest assets to raise funds
+When directing an action at another player, use their exact character name as listed, i.e. one of: {other_player_names}
+- {action_prompt_block}
 
 What actions do you want to take this round? Respond with a JSON object as specified in your system message."""
 

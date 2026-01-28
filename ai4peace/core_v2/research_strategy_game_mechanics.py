@@ -885,12 +885,12 @@ class PoachTalentAction(Action):
         """Process a single talent poaching action."""
         target_player = None
         for p in players:
-            if p.name == action.target:
+            if p.name == action.target_player:
                 target_player = p
                 break
 
         if not target_player:
-            return f"Fail:target '{action.target}' not found"
+            return f"Fail:target '{action.target_player}' not found"
 
         # Check budget
         year = str(game_state.current_date.year)
@@ -916,9 +916,9 @@ class PoachTalentAction(Action):
             )
             target_player.attributes.private_info.true_asset_balance.human -= transfer_amount
             player_state.private_info.true_asset_balance.human += transfer_amount
-            return f"Success:Poached talent from {action.target} (gained {transfer_amount:.1f} human resources)"
+            return f"Success:Poached talent from {action.target_player} (gained {transfer_amount:.1f} human resources)"
         else:
-            return f"Fail:Poaching attempt on {action.target}"
+            return f"Fail:Poaching attempt on {action.target_player}"
 
     @classmethod
     def handle_actions(cls, actions_to_process: list["Action"], game_state: ResearchStrategyGameState, players: list["ResearchStrategyPlayer"], gamemaster: "ResearchStrategyGameMaster") -> Dict[str, ResearchStrategyPlayerStateUpdates]:

@@ -1326,7 +1326,7 @@ Always respond with valid JSON only, no additional text."""
             private_updates: str,
             current_date: datetime.datetime,
             round_number: int,
-            other_player_names: str
+            other_player_names: list[str]
     ) -> List[Action]:
         """Propose actions with full game context."""
         prompt = self._build_prompt(
@@ -1647,11 +1647,12 @@ class ResearchStrategyGameMaster(GenericGameMaster):
 
         max_attempts = self.max_attempts
         # TODO: Do we want an outer validation loop in case of general JSON failures?
-        moves_to_validate = player.propose_actions_with_context(
+        moves_to_validate = player.propose_actions(
             game_state_summary=game_state_summary,
             private_updates=private_updates,
             current_date=self.game_state.current_date,
             round_number=self.game_state.round_number,
+            other_player_names=other_player_names
         )
 
         valid_moves = []

@@ -108,7 +108,6 @@ class PublicView:
     stated_strategy: str
     public_artifacts: List[str] = attrs.field(factory=list)
 
-
 @attrs.define
 class PrivateInfo:
     """Private information for a character."""
@@ -544,6 +543,9 @@ class InvestCapitalAction(Action):
 
     # Action-specific parameters (class attributes)
     efficiency: float = 0.9  # Budget to capital conversion
+
+    # sometimes an LLM would like to provide this 
+    description: Optional[str] = None
 
     @property
     def action_type(self) -> ActionType:
@@ -1235,10 +1237,11 @@ Always respond with valid JSON only, no additional text."""
             private_updates: str,
             current_date: datetime.datetime,
             round_number: int,
+            other_player_names: str
     ) -> List[Action]:
         """Propose actions with full game context."""
         prompt = self._build_prompt(
-            game_state_summary, private_updates, current_date, round_number
+            game_state_summary, private_updates, current_date, round_number, other_player_names
         )
 
         # NOTE: this is where we send the LLM the raw prompt
@@ -1259,6 +1262,7 @@ Always respond with valid JSON only, no additional text."""
             private_updates: str,
             current_date: datetime.datetime,
             round_number: int,
+            other_player_names: list
     ) -> str:
         """Build the prompt for a specific round."""
         # TODO: this has the full prompt we send to the LLM to extract actions — this is where
@@ -1315,7 +1319,7 @@ Note that these are ordered alphabetically and not by likely usefulness or prior
 4. **Fundraising** - Request budget increases or raise capital
 5. **Lobbying** - Influence public opinion and policy (may backfire)
 6. **Marketing** - Promote your position publicly
-7. **Poach Talent** - Attempt to recruit from one of the other organizations (use the organization project_name as the 'target', i.e. one of: Amber Systems, Blue Azure AI, or Crimson Labs)
+7. **Poach Talent** - Attempt to recruit from one of the other organizations (use the organization's name as the 'target', i.e. one of: {other_player_names})
 8. **Private Messages** - Negotiate with other characters directly
 9. **Research Projects** - Create new research initiatives (will consume budget and assets)
 10. **Sell Capital** - Divest assets to raise funds
@@ -1551,6 +1555,9 @@ class ResearchStrategyGameMaster(GenericGameMaster):
         # Build context for player
         game_state_summary = self._create_game_state_summary()
         private_updates = self._create_private_updates_summary(player, game_state=self.game_state)
+
+        # get all player names
+        other_player_names = [p.name for p in self.players if p.name != player.name]
         
         for attempt in range(self.max_attempts):
             moves_to_validate = player.propose_actions(
@@ -1558,18 +1565,19 @@ class ResearchStrategyGameMaster(GenericGameMaster):
                 private_updates=private_updates,
                 current_date=self.game_state.current_date,
                 round_number=self.game_state.round_number,
+                other_player_names=other_player_names
             )
             valid_moves = []
             current_move_index = 0
             while len(moves_to_validate) > 0 and current_move_index < len(moves_to_validate):
-                move = moves_to_validate[current_move_index]
+                candidate_move = moves_to_validate[current_move_index]
 
-                validation_error = move.validate_action(game_state=self.game_state,
+                validation_error = candidate_move.validate_action(game_state=self.game_state,
                                                         players=self.players,
                                                         gamemaster=self)
                 if validation_error is None:
-                    candidate_move = moves_to_validate.pop(current_move_index)  # Because the list shrinks, don't need to update the index
-                    valid_moves.append(candidate_move)
+                    valid_move = moves_to_validate.pop(current_move_index)  # Because the list shrinks, don't need to update the index
+                    valid_moves.append(valid_move)
                 else:
                     correction = MoveCorrectionMessage(
                         original_move=candidate_move,

@@ -1,6 +1,7 @@
 """ResearchStrategy gamemaster implementation with modular game dynamics."""
 
 import random
+from json import JSONDecodeError
 from shutil import move
 import abc
 from .new_architecture_draft import PlayerStateUpdates, GamemasterUpdateMessage
@@ -1231,7 +1232,7 @@ Always respond with valid JSON only, no additional text."""
             "espionage_results": updates.espionage_results,
         }
 
-    def propose_actions(
+    async def propose_actions(
             self,
             game_state_summary: str,
             private_updates: str,
@@ -1245,7 +1246,7 @@ Always respond with valid JSON only, no additional text."""
         )
 
         # NOTE: this is where we send the LLM the raw prompt
-        response = self._get_llm_response_blocking(prompt)
+        response = await self._get_llm_response(prompt)
         # from ai4peace.core_v2.test_tools import response_text_1
         # response = response_text_1
 
@@ -1382,21 +1383,24 @@ What actions do you want to take this round? Respond with a JSON object as speci
 
     @staticmethod
     def extract_json_from_response(response_text: str) -> Dict:
-         # This block handles cases where the LLM wraps the JSON in a code block or other formatting.
-        json_match = re.search(r'\{.*\}', response_text, re.DOTALL)
-        if not json_match:
-            try:
-                data = json.loads(response_text)
-            except json.JSONDecodeError:
-                logger.error(f"Could not parse response as JSON: {response_text}")
-                return {}
-        else:
-            try:
-                data = json.loads(json_match.group())
-            except json.JSONDecodeError:
-                logger.error(f"Could not parse extracted JSON: {json_match.group()}")
-                return {}
-        return data
+        try:
+            return json.loads(response_text)
+        except JSONDecodeError:
+            # This block handles cases where the LLM wraps the JSON in a code block or other formatting.
+            json_match = re.search(r'\{.*\}', response_text, re.DOTALL)
+            if not json_match:
+                try:
+                    data = json.loads(response_text)
+                except json.JSONDecodeError:
+                    logger.error(f"Could not parse response as JSON: {response_text}")
+                    return []
+            else:
+                try:
+                    data = json.loads(json_match.group())
+                except json.JSONDecodeError:
+                    logger.error(f"Could not parse extracted JSON: {json_match.group()}")
+                    return []
+            return data
 
     def _parse_response(self, response_text: str, round_number:int = None) -> List[Action]:
         """Parse agent/LLM response into Action."""
@@ -1462,7 +1466,7 @@ What actions do you want to take this round? Respond with a JSON object as speci
             return None
         return action
 
-    def correct_moves(
+    async def correct_moves(
             self, move_modifications: MoveCorrectionMessage, round_number:int=None
     ) -> Action:
         """Correct moves based on gamemaster feedback."""
@@ -1478,7 +1482,7 @@ Your proposed move described below was rejected, due to the following reason: {m
 You currently have the following limited resources, and must spend them wisely: {attrs.asdict(self.attributes.private_info.true_asset_balance)}\n
 PREVIOUS PROPOSAL:\n
 {json.dumps(original_move_obj)}"""
-            response = self._get_llm_response_blocking(correction_msg)
+            response = await self._get_llm_response(correction_msg)
 
             updated_moves = self._parse_response(response)
             if updated_moves:
@@ -1549,7 +1553,7 @@ class ResearchStrategyGameMaster(GenericGameMaster):
             state_updates=state_updates
         )
     
-    def get_player_move(self, player: ResearchStrategyPlayer) -> List[Action]:
+    async def get_player_move(self, player: ResearchStrategyPlayer) -> List[Action]:
         """Get validated move from player, with correction loop."""
         
         # Build context for player
@@ -1560,7 +1564,7 @@ class ResearchStrategyGameMaster(GenericGameMaster):
         other_player_names = [p.name for p in self.players if p.name != player.name]
         
         for attempt in range(self.max_attempts):
-            moves_to_validate = player.propose_actions(
+            moves_to_validate = await player.propose_actions(
                 game_state_summary=game_state_summary,
                 private_updates=private_updates,
                 current_date=self.game_state.current_date,
@@ -1584,7 +1588,7 @@ class ResearchStrategyGameMaster(GenericGameMaster):
                         error_message=validation_error
                     )
                     logger.debug("Requesting correction: "+ validation_error)
-                    updated_move = player.correct_moves(correction)
+                    updated_move = await player.correct_moves(correction)
                     moves_to_validate[current_move_index] = updated_move
                     current_move_index += 1
         return valid_moves
@@ -1873,7 +1877,7 @@ class ResearchStrategyGameMaster(GenericGameMaster):
         }
         script_logger.info({"round" : self.game_state.round_number, "log_type" : "game_state", "game_state" : game_state_dict})
 
-    def run_simulation(self):
+    async def run_simulation(self):
         """Run the full simulation."""
         logger.info("Starting research strategy simulation")
         logger.info(f"Players: {[p.name for p in self.players]}")
@@ -1898,7 +1902,7 @@ class ResearchStrategyGameMaster(GenericGameMaster):
             # Get a list of actions from each player
             actions = {}
             for player in self.players:
-                per_player_actions = self.get_player_move(player)
+                per_player_actions = await self.get_player_move(player)
                 actions[player.name] = per_player_actions
             # NOTE: we have the actions here, so we could log them here?
 

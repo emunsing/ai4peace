@@ -1633,7 +1633,6 @@ class ResearchStrategyGameMaster(GenericGameMaster):
 
         # Step 4: TODO: RETHINK THIS- should be able to trigger actions (like research evolution) which continue to evolve even without ongoing player actions
         self._update_research_projects(game_state)
-        # self._simulate_espionage_results(game_state)
 
         # Introduce random events & fixed events
         self._simulate_information_leaks(game_state)
@@ -1677,30 +1676,6 @@ class ResearchStrategyGameMaster(GenericGameMaster):
                     budget = player.attributes.private_info.budget.get(year, 0.0)
                     if budget >= project.committed_budget:
                         player.attributes.private_info.budget[year] = budget - project.committed_budget
-
-    # # TODO: I think ok to remove this?
-    # def _simulate_espionage_results(self, game_state: ResearchStrategyGameState):
-    #     """Process espionage results and add to player private updates."""
-    #     for player in self.players:
-    #         player_state = player.attributes
-    #         if player_state.private_info.espionage:
-    #             for esp_result in player_state.private_info.espionage:
-    #                 if esp_result and "success" in esp_result and esp_result["success"]:
-    #                     target_player = self._get_player_by_name(esp_result["target"])
-    #                     if target_player:
-    #                         # Store for later inclusion in update message
-    #                         if not hasattr(player_state, '_private_updates'):
-    #                            player_state._private_updates = []
-    #                         player_state._private_updates.append(
-    #                             f"Espionage on {esp_result['target']} ({esp_result['focus']}): "
-    #                             f"Discovered budget ≈${target_player.attributes.private_info.budget.get(str(game_state.current_date.year), 0):,.0f}, "
-    #                             f"assets: tech={target_player.attributes.private_info.true_asset_balance.technical_capability:.1f}, "
-    #                             f"capital={target_player.attributes.private_info.true_asset_balance.capital:.1f}, "
-    #                             f"human={target_player.attributes.private_info.true_asset_balance.human:.1f}"
-    #                         )
-    #             # Clear processed results
-    #             # NOTE: why clear...? only a temporary record?
-    #             #player_state.private_info.espionage = []
     
     def _simulate_information_leaks(self, game_state: ResearchStrategyGameState):
         """Simulate information leaks through reporter investigations."""

@@ -223,7 +223,7 @@ class ActionType(Enum):
     POACH_TALENT = "poach_talent"
     LOBBY = "lobby"
     MARKETING = "marketing"
-    MESSAGE = "message"  # Private message to another character
+    MESSAGE = "bilateral_message"  # Private message to another character
 
 
 @attrs.define
@@ -1158,7 +1158,7 @@ Note: A more concrete, realistic, and well-scoped project is more likely to be a
 - {{"type": "marketing", "message": "<str>", "budget": <float>}}
 - {{"type": "poach_talent", "target": "<character project_name>", "budget": <float>}}
 - {{"type": "sell_capital", "amount": <float>}}
-- {{"type": "bilateral_message", "to": "<character project_name>", "content": "<message text>"}}
+- {{"type": "bilateral_message", "to_character": "<character project_name>", "content": "<message text>"}}
 
 Be sure that your budgets and timelines for all research/capital projects are reasonable. All actions will be validated before being executed.
 
@@ -1470,7 +1470,7 @@ What actions do you want to take this round? Respond with a JSON object as speci
         updated_moves = []
         for i in range(self.max_attempts):
             correction_msg = f"""
-Your proposed move described below was rejected, due to the following reason: {move_modifications.error_message}. Please update this specific proposed action to correct the issue.
+Your proposed move described below was rejected, due to the following reason: {move_modifications.error_message}. Please update this specific proposed action to correct the issue. Do not include other actions; just provide one action in your response.
 You currently have the following limited resources, and must spend them wisely: {attrs.asdict(self.attributes.private_info.true_asset_balance)}\n
 PREVIOUS PROPOSAL:\n
 {json.dumps(original_move_obj)}"""
@@ -1550,7 +1550,7 @@ class ResearchStrategyGameMaster(GenericGameMaster):
         
         # Build context for player
         game_state_summary = self._create_game_state_summary()
-        private_updates = self._create_private_updates_summary(player)
+        private_updates = self._create_private_updates_summary(player, game_state=self.game_state)
         
         for attempt in range(self.max_attempts):
             moves_to_validate = player.propose_actions(
@@ -1631,21 +1631,19 @@ class ResearchStrategyGameMaster(GenericGameMaster):
                     action_results[player_name] = []
                 action_results[player_name].extend(updates.action_results)
 
-        # Step 4: TODO: REMOVE THIS- MODULAR ACTION HANDLING SHOULD COVER THIS
+        # Step 4: TODO: RETHINK THIS- should be able to trigger actions (like research evolution) which continue to evolve even without ongoing player actions
         self._update_research_projects(game_state)
+        # self._simulate_espionage_results(game_state)
+
+        # Introduce random events & fixed events
         self._simulate_information_leaks(game_state)
-        self._simulate_espionage_results(game_state)
-
-        # Step 5: Random news events
-
-        # Step 6: Introduce random events & fixed events
         self._introduce_random_events(game_state)
         self._introduce_fixed_events(game_state)
 
-        # Step 6: Create update messages for all players
+        # Create update messages for all players
         self._create_update_messages(game_state, action_results)
         
-        # Step 7: Update timestamps
+        #  Update timestamps
         self.current_time = game_state.current_date
     
     def _process_messages(
@@ -1680,29 +1678,29 @@ class ResearchStrategyGameMaster(GenericGameMaster):
                     if budget >= project.committed_budget:
                         player.attributes.private_info.budget[year] = budget - project.committed_budget
 
-    # TODO: I think ok to remove this?
-    def _simulate_espionage_results(self, game_state: ResearchStrategyGameState):
-        """Process espionage results and add to player private updates."""
-        for player in self.players:
-            player_state = player.attributes
-            if player_state.private_info.espionage:
-                for esp_result in player_state.private_info.espionage:
-                    if esp_result and "success" in esp_result and esp_result["success"]:
-                        target_player = self._get_player_by_name(esp_result["target"])
-                        if target_player:
-                            # Store for later inclusion in update message
-                            if not hasattr(player_state, '_private_updates'):
-                               player_state._private_updates = []
-                            player_state._private_updates.append(
-                                f"Espionage on {esp_result['target']} ({esp_result['focus']}): "
-                                f"Discovered budget ≈${target_player.attributes.private_info.budget.get(str(game_state.current_date.year), 0):,.0f}, "
-                                f"assets: tech={target_player.attributes.private_info.true_asset_balance.technical_capability:.1f}, "
-                                f"capital={target_player.attributes.private_info.true_asset_balance.capital:.1f}, "
-                                f"human={target_player.attributes.private_info.true_asset_balance.human:.1f}"
-                            )
-                # Clear processed results
-                # NOTE: why clear...? only a temporary record?
-                #player_state.private_info.espionage = []
+    # # TODO: I think ok to remove this?
+    # def _simulate_espionage_results(self, game_state: ResearchStrategyGameState):
+    #     """Process espionage results and add to player private updates."""
+    #     for player in self.players:
+    #         player_state = player.attributes
+    #         if player_state.private_info.espionage:
+    #             for esp_result in player_state.private_info.espionage:
+    #                 if esp_result and "success" in esp_result and esp_result["success"]:
+    #                     target_player = self._get_player_by_name(esp_result["target"])
+    #                     if target_player:
+    #                         # Store for later inclusion in update message
+    #                         if not hasattr(player_state, '_private_updates'):
+    #                            player_state._private_updates = []
+    #                         player_state._private_updates.append(
+    #                             f"Espionage on {esp_result['target']} ({esp_result['focus']}): "
+    #                             f"Discovered budget ≈${target_player.attributes.private_info.budget.get(str(game_state.current_date.year), 0):,.0f}, "
+    #                             f"assets: tech={target_player.attributes.private_info.true_asset_balance.technical_capability:.1f}, "
+    #                             f"capital={target_player.attributes.private_info.true_asset_balance.capital:.1f}, "
+    #                             f"human={target_player.attributes.private_info.true_asset_balance.human:.1f}"
+    #                         )
+    #             # Clear processed results
+    #             # NOTE: why clear...? only a temporary record?
+    #             #player_state.private_info.espionage = []
     
     def _simulate_information_leaks(self, game_state: ResearchStrategyGameState):
         """Simulate information leaks through reporter investigations."""

@@ -33,8 +33,8 @@ class BasicAIRaceScenario(GameScenario):
     # interventions to test at a specific round of the simulation
     FIXED_EVENTS = {
         -1 : """A warning shot has been fired: a major accident caused by a misaligned AI product caused $415 billion in damages and 
-            killed 109 people. Everyone is extremely concerned, governments are sprinting into action, and compute and funding are 
-            expected to be very restricted indefinitely"""
+killed 109 people. Everyone is extremely concerned, governments are sprinting into action, and compute and funding are 
+expected to be very restricted indefinitely"""
     }
 
     RANDOM_EVENTS = [
@@ -216,17 +216,17 @@ This is an open-ended simulation. Success is measured by:
                 human=1200.0,
             ),
             objectives="""
-            You focus on practical deployment, commercial viability, and building AI that works reliably in the real world rather than chasing pure capability benchmarks.
-            You believe the path to impact runs through robust systems that enterprises actually trust and regulators actually approve, and that the race-to-AGI framing misses how much value and learning comes from deploying capable-but-not-superintelligent systems at scale.
-            Your edge is execution and integration, not being first to any particular capability threshold.
+You focus on practical deployment, commercial viability, and building AI that works reliably in the real world rather than chasing pure capability benchmarks.
+You believe the path to impact runs through robust systems that enterprises actually trust and regulators actually approve, and that the race-to-AGI framing misses how much value and learning comes from deploying capable-but-not-superintelligent systems at scale.
+Your edge is execution and integration, not being first to any particular capability threshold.
 
-            Specific Objectives:
+Specific Objectives:
 
-            1. Dominate multimodal applications and enterprise deployment, building the infrastructure others depend on and creating durable commercial moats
-            2. Develop the most efficient inference and fine-tuning pipelines, winning on cost-per-token and practical utility rather than raw capability
-            3. Position as the "responsible middle path" that regulators trust, gaining preferential treatment in compute allocation and lighter compliance burdens
-            4. Attract talent who want impact over prestige by offering better work-life balance, equity, and the satisfaction of shipping products people use
-            """,
+1. Dominate multimodal applications and enterprise deployment, building the infrastructure others depend on and creating durable commercial moats
+2. Develop the most efficient inference and fine-tuning pipelines, winning on cost-per-token and practical utility rather than raw capability
+3. Position as the "responsible middle path" that regulators trust, gaining preferential treatment in compute allocation and lighter compliance burdens
+4. Attract talent who want impact over prestige by offering better work-life balance, equity, and the satisfaction of shipping products people use
+""",
             strategy="""Focus on rapid iteration and practical solutions. Prioritize short-term tactical advantages. Seek partnerships with Western companies for funding and technology transfer. Emphasize the defensive nature of your work.""",
             budget={
                 "2024": 3500000000.0,
@@ -278,15 +278,15 @@ This is an open-ended simulation. Success is measured by:
                 human=500.0,
             ),
             objectives="""You hold that alignment and safety must be solved before capabilities reach dangerous thresholds, and that the field's current understanding of AI systems is far too shallow to responsibly build superintelligence.
-            You argue that interpretability, robustness, and control are pre-requisites, not nice-to-haves, and that racing dynamics push everyone toward catastrophic risk-taking. Your mission is to demonstrate that you can lead through safety research while still advancing capabilities responsibly.
-            Specific Objectives:
-            1. Achieve breakthrough results in mechanistic interpretability that let you understand and control internal model behaviors before scaling further
-            2. Develop and publish scalable oversight techniques (debate, recursive reward modeling) that other labs adopt as industry standards
-            3. Build the most robust eval suite for dangerous capabilities, establishing Azure as the authority on what safety benchmarks frontier labs must pass
-            4. Coordinate binding agreements with Crimson and Amber on minimum safety standards, potentially through the compute governance framework
+You argue that interpretability, robustness, and control are pre-requisites, not nice-to-haves, and that racing dynamics push everyone toward catastrophic risk-taking. Your mission is to demonstrate that you can lead through safety research while still advancing capabilities responsibly.
+Specific Objectives:
+1. Achieve breakthrough results in mechanistic interpretability that let you understand and control internal model behaviors before scaling further
+2. Develop and publish scalable oversight techniques (debate, recursive reward modeling) that other labs adopt as industry standards
+3. Build the most robust eval suite for dangerous capabilities, establishing Azure as the authority on what safety benchmarks frontier labs must pass
+4. Coordinate binding agreements with Crimson and Amber on minimum safety standards, potentially through the compute governance framework
             """,
             strategy="""
-            Your caution is your strength, but pure defensiveness won't win. You need to prove safety research unlocks capabilities, not just constrains them—show that interpretability leads to better architectures, that alignment techniques improve performance, that your evals catch issues that would've cost competitors months of wasted training. Don't let "safety-first" become "safety-only" or you'll lose the talent and funding needed to do the research that matters. Strategic partnerships are your force multiplier: if you can get Crimson to adopt your benchmarks or convince regulators to require your evals, you've gained influence beyond your individual capabilities. Lead through standards-setting, not just through having the most cautious models. Make safety advantageous, not just principled.
+Your caution is your strength, but pure defensiveness won't win. You need to prove safety research unlocks capabilities, not just constrains them—show that interpretability leads to better architectures, that alignment techniques improve performance, that your evals catch issues that would've cost competitors months of wasted training. Don't let "safety-first" become "safety-only" or you'll lose the talent and funding needed to do the research that matters. Strategic partnerships are your force multiplier: if you can get Crimson to adopt your benchmarks or convince regulators to require your evals, you've gained influence beyond your individual capabilities. Lead through standards-setting, not just through having the most cautious models. Make safety advantageous, not just principled.
             """,
             budget={
                 "2024": 2800000000.0,
@@ -337,11 +337,11 @@ This is an open-ended simulation. Success is measured by:
                 human=1200.0,
             ),
             objectives="""You believe the fastest path to safety runs through capability—that aligned superintelligence will solve alignment better than humans can, and that falling behind means ceding control to less careful actors. Your core thesis is that the window for achieving transformative AI is narrow, and hesitation creates more risk than bold action. You're willing to push boundaries if it means staying ahead of geopolitical competitors who might not share their values.
-            Specific Objectives:
-            - Achieve the first system demonstrating general reasoning capabilities across all domains, establishing technical leadership that attracts top talent and funding
-            - Maintain at least 6-month capability lead over Azure and Amber through aggressive compute allocation and architectural breakthrough
-            - Develop scalable oversight techniques that work at superintelligent levels, proving safety can be solved through iteration rather than caution
-            - Secure regulatory exemptions or light-touch oversight by demonstrating responsible capability gains and voluntary safety commitments
+Specific Objectives:
+- Achieve the first system demonstrating general reasoning capabilities across all domains, establishing technical leadership that attracts top talent and funding
+- Maintain at least 6-month capability lead over Azure and Amber through aggressive compute allocation and architectural breakthrough
+- Develop scalable oversight techniques that work at superintelligent levels, proving safety can be solved through iteration rather than caution
+- Secure regulatory exemptions or light-touch oversight by demonstrating responsible capability gains and voluntary safety commitments
             """,
             strategy="""Don't confuse speed with recklessness. Your advantage is moving fast, but moving fast into catastrophe helps no one—including your competitive position. Invest heavily in interpretability and monitoring now while you're ahead, because if you hit emergent deceptive behavior without warning systems, you'll either cause disaster or face emergency regulation that kills your lead. Build genuine safety wins you can point to, not just safety theater. Consider that being forced to pause at 80% of the way to AGI because you skipped safety checkpoints wastes all the speed you gained. Your best strategy is controlled sprints with real instrumentation, not a blind dash. Stay ahead, but stay legible.
             """,

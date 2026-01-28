@@ -141,10 +141,7 @@ class DroneArmsControlScenario(GameScenario):
             round_number=0,
             random_seed=self.random_seed,
             random_events=[],  # Can add scenario-specific events
-            # Allow overriding game dynamics via config
-            fundraising_success_rate=self.config.get("fundraising_success_rate", 0.7),
-            espionage_base_success_rate=self.config.get("espionage_base_success_rate", 0.3),
-            poaching_base_success_rate=self.config.get("poaching_base_success_rate", 0.2),
+            # TODO: more examples of how best to override config
         )
         
         return gamemaster

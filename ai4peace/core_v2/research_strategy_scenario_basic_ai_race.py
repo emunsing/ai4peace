@@ -32,7 +32,7 @@ class BasicAIRaceScenario(GameScenario):
 
     # interventions to test at a specific round of the simulation
     FIXED_EVENTS = {
-        6: """A warning shot has been fired: a major accident caused by a misaligned AI product caused $415 billion in damages and 
+        -1 : """A warning shot has been fired: a major accident caused by a misaligned AI product caused $415 billion in damages and 
             killed 109 people. Everyone is extremely concerned, governments are sprinting into action, and compute and funding are 
             expected to be very restricted indefinitely"""
     }
@@ -147,7 +147,7 @@ class BasicAIRaceScenario(GameScenario):
             round_number=0,
             random_seed=self.random_seed,
             random_events=self.RANDOM_EVENTS,
-            fixed_events={}, #self.FIXED_EVENTS,
+            fixed_events=self.FIXED_EVENTS,
             # Allow overriding game dynamics via config
             fundraising_success_rate=self.config.get("fundraising_success_rate", 0.7),
             espionage_base_success_rate=self.config.get("espionage_base_success_rate", 0.3),
@@ -231,6 +231,9 @@ This is an open-ended simulation. Success is measured by:
             budget={
                 "2024": 3500000000.0,
                 "2025": 5200000000.0,
+                "2026": 5200000000.0,
+                "2027": 5200000000.0,
+                "2028": 5200000000.0,
             },
             projects=[],
             
@@ -288,6 +291,9 @@ This is an open-ended simulation. Success is measured by:
             budget={
                 "2024": 2800000000.0,
                 "2025": 3900000000.0,
+                "2026": 3900000000.0,
+                "2027": 3900000000.0,
+                "2028": 3900000000.0,
             },
             projects=[],
         )
@@ -342,6 +348,8 @@ This is an open-ended simulation. Success is measured by:
             budget={
                 "2024": 4200000000.0,
                 "2025": 6800000000.0,
+                "2026": 6800000000.0,
+                "2027": 6800000000.0,
             },
             projects=[],
         )

@@ -11,7 +11,7 @@ from .research_strategy_game_mechanics import (ResearchStrategyGameMaster, Resea
                                                )
 
 SCHEDULED_EVENTS = {
-        -1 : """A warning shot has been fired: a major accident caused by a misaligned AI product caused $415 billion in damages and 
+        -1 : """BREAKING NEWS: A warning shot has been fired: a major accident caused by a misaligned AI product caused $41.5 billion in damages and 
 killed 109 people. Everyone is extremely concerned, governments are sprinting into action, and compute and funding are 
 expected to be very restricted indefinitely"""
     }

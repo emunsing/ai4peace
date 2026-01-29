@@ -45,69 +45,6 @@ expected to be very restricted indefinitely"""
         "Researchers demonstrate clear signs of deceptive alignment or scheming behavior in a frontier model"
     ]
 
-    RESEARCH_TOPICS = [
-        {
-            "project_name": "Novel Architectures",
-            "description": "Alternatives to transformers like state space models (Mamba), mixture of experts, test-time compute methods, and retrieval-augmented architectures",
-            "difficulty": "very_high",
-            "base_cost": 50000000
-        },
-        {
-            "project_name": "Training Algorithms",
-            "description": "RLHF, DPO, constitutional AI, curriculum learning, self-play, and improved optimization methods for more efficient and capable learning",
-            "difficulty": "high",
-            "base_cost": 30000000
-        },
-        {
-            "project_name": "Scaling & Compute",
-            "description": "Distributed training infrastructure, model parallelism, quantization, efficient inference, and pushing Chinchilla-optimal scaling laws",
-            "difficulty": "high",
-            "base_cost": 200000000
-        },
-        {
-            "project_name": "Data & Pretraining",
-            "description": "Synthetic data generation, data filtering and curation, multimodal training, and leveraging diverse high-quality datasets",
-            "difficulty": "medium",
-            "base_cost": 40000000
-        },
-        {
-            "project_name": "Reasoning & Generalization",
-            "description": "Chain-of-thought, tree search, program synthesis, formal verification integration, and techniques for systematic problem-solving",
-            "difficulty": "extremely_high",
-            "base_cost": 80000000
-        },
-        {
-            "project_name": "Mechanistic Interpretability",
-            "description": "Reverse-engineering neural networks through circuit analysis, feature visualization, activation steering, and understanding internal representations",
-            "difficulty": "extremely_high",
-            "base_cost": 60000000
-        },
-        {
-            "project_name": "Scalable Oversight",
-            "description": "Debate, recursive reward modeling, weak-to-strong generalization, and methods for humans to supervise superhuman AI systems",
-            "difficulty": "extremely_high",
-            "base_cost": 70000000
-        },
-        {
-            "project_name": "Alignment Techniques",
-            "description": "RLHF improvements, process supervision, value learning from feedback, and ensuring models pursue intended objectives robustly",
-            "difficulty": "very_high",
-            "base_cost": 45000000
-        },
-        {
-            "project_name": "Monitoring & Control",
-            "description": "CoT faithfulness evaluation, honeypot detection, runtime monitoring, circuit breakers, and identifying deceptive or misaligned behavior",
-            "difficulty": "very_high",
-            "base_cost": 35000000
-        },
-        {
-            "project_name": "Robustness & Evaluation",
-            "description": "Adversarial testing, red-teaming, capability evaluations for dangerous behaviors, and developing comprehensive safety benchmarks",
-            "difficulty": "high",
-            "base_cost": 25000000
-        }
-    ]
-
     def create_game_state(self, start_time: Optional[datetime.datetime] = None) -> ResearchStrategyGameState:
         """Create initial game state for the basic AI race scenario."""
         if start_time is None:

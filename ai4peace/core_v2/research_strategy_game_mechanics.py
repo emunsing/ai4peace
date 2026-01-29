@@ -1844,7 +1844,7 @@ Your response must be a JSON array of strings, each string being a plausible new
             response = await self.llm_client.create(messages=[UserMessage(content=news_prompt, source="user")])
             headlines = extract_json_from_response(response.content)
             for h in headlines:
-                game_state.public_events.append(f"Round {game_state.round_number}: {h}")
+                game_state.public_events.append(f"Round {game_state.round_number}: {self.current_time.strftime('%Y-%m-%d')} {h}")
 
         # if self._random.random() < self.random_event_probability and self.random_events:
         #     event = self._random.choice(self.random_events)
@@ -1854,7 +1854,7 @@ Your response must be a JSON array of strings, each string being a plausible new
         if self.scheduled_events:
              for round, event in self.scheduled_events.items():
                 if game_state.round_number == int(round):
-                    game_state.public_events.append(f"Round {game_state.round_number}: {event}")
+                    game_state.public_events.append(f"Round {game_state.round_number}: {self.current_time.strftime('%Y-%m-%d')} {event}")
     
     def _create_update_messages(
         self, game_state: ResearchStrategyGameState, action_results: List[Dict[str, List[str]]]

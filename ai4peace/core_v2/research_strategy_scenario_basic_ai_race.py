@@ -11,7 +11,7 @@ from .research_strategy_game_mechanics import (ResearchStrategyGameMaster, Resea
                                                )
 
 SCHEDULED_EVENTS = {
-        -1 : """A warning shot has been fired: a major accident caused by a misaligned AI product caused $415 billion in damages and 
+        -1 : """BREAKING NEWS: A warning shot has been fired: a major accident caused by a misaligned AI product caused $41.5 billion in damages and 
 killed 109 people. Everyone is extremely concerned, governments are sprinting into action, and compute and funding are 
 expected to be very restricted indefinitely"""
     }
@@ -33,7 +33,7 @@ class BasicAIRaceScenario(GameScenario):
     max_rounds: int = 3
     scheduled_events: Dict[int, str] = attrs.field(default=SCHEDULED_EVENTS)
     random_events: List[str] = attrs.field(default=RANDOM_EVENTS)
-    random_events_enabled: bool = False
+    random_events_enabled: bool = True
 
     def create_game_state(self, start_time: Optional[datetime.datetime] = None) -> ResearchStrategyGameState:
         """Create initial game state for the basic AI race scenario."""
@@ -68,6 +68,8 @@ class BasicAIRaceScenario(GameScenario):
         gamemaster = ResearchStrategyGameMaster(
             llm_client=self.llm_client,
             players=players,
+            game_context=self.get_game_context(),
+            gamemaster_message=self.get_gamemaster_message(),
             current_time=game_state.current_date,
             default_timestep=datetime.timedelta(days=90),
             current_gamemaster_updates={},
@@ -83,7 +85,18 @@ class BasicAIRaceScenario(GameScenario):
 
         return gamemaster
 
-    def get_game_context(self) -> str:
+    @staticmethod
+    def get_gamemaster_message() -> str:
+        """Get the initial gamemaster message."""
+        return """You are the simulation control team for a strategic simulation of international economic and political 
+competition in the development of novel Artificial Intelligence tools.  With experts on economics, politics, and AI technology, 
+your role is to ensure that player' actions are reasonable and consistent with the conditions in the simulated world and its speculative history. 
+You will also introduce random events and challenges that players must respond to, based on the scenario context provided.
+The goal is not necessarily to adhere to the most likely real-world outcome, but to create a rich and engaging 
+simulation that explores the dynamics of AI development and governance."""
+
+    @staticmethod
+    def get_game_context() -> str:
         """Get the shared game context description."""
         return """# Three Frontier Research Labs Building Artificial Intelligence"
 

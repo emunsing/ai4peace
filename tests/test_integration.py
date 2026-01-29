@@ -109,10 +109,10 @@ def test_integration():
                                 }
                                 )
 
-    scenario_instance = scenario_class(llm_client=llm_client)
+    scenario_instance = scenario_class(llm_client=llm_client, max_rounds=2, random_events_enabled=False)
 
     gamemaster = scenario_instance.get_game_master()
-    asyncio.run(gamemaster.run_simulation(max_rounds=2))
+    asyncio.run(gamemaster.run_simulation())
 
 if __name__ == "__main__":
     test_integration()

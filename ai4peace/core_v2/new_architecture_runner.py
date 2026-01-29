@@ -46,7 +46,7 @@ logging.getLogger("httpx").setLevel(logging.WARNING)
     type=str,
     help='JSON string with scenario parameters (default: \'{"n_players": 3}\')',
 )
-def main(
+def simulation_runner_cli(
         api_key: str,
         scenario: str,
         model: str,
@@ -62,8 +62,25 @@ def main(
     Example:
         python -m ai4peace.core.new_architecture_draft --api-key $OPENAI_API_KEY --json-kwargs '{"n_players": 3, "random_seed": 42}'
     """
-    # Set up logging
-    setup_logging(log_file=log_file) 
+    simulation_runner(
+        api_key=api_key,
+        scenario=scenario,
+        model=model,
+        api_base=api_base,
+        log_file=log_file,
+        json_kwargs=json_kwargs,
+    )
+
+
+def simulation_runner(
+        api_key: str,
+        scenario: str,
+        model: str,
+        api_base: Optional[str],
+        log_file: str,
+        json_kwargs: str,
+):
+    setup_logging(log_file=log_file)
 
     # Load scenario
     scenario_class = load_scenario_class(scenario, must_subclass=GameScenario)
@@ -79,7 +96,7 @@ def main(
 
     gamemaster = scenario_instance.get_game_master()
     asyncio.run(gamemaster.run_simulation())
-    # gamemaster.run_simulation()
+
 
 if __name__ == "__main__":
-    main()
+    simulation_runner_cli()

@@ -432,6 +432,7 @@ class CreateResearchProjectAction(Action):
             project.realistic_goals = assess_realism_callback(project, player_state)
 
         # Deduct resources
+        required.technical_capability = 0 # Technical capability is not deducted permanently
         player_state.private_info.true_asset_balance = current.subtract(required)
         player_state.private_info.budget[year] = current_budget - action.annual_budget
 

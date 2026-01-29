@@ -69,6 +69,7 @@ class BasicAIRaceScenario(GameScenario):
             llm_client=self.llm_client,
             players=players,
             game_context=self.get_game_context(),
+            gamemaster_message=self.get_gamemaster_message(),
             current_time=game_state.current_date,
             default_timestep=datetime.timedelta(days=90),
             current_gamemaster_updates={},
@@ -84,7 +85,18 @@ class BasicAIRaceScenario(GameScenario):
 
         return gamemaster
 
-    def get_game_context(self) -> str:
+    @staticmethod
+    def get_gamemaster_message() -> str:
+        """Get the initial gamemaster message."""
+        return """You are the simulation control team for a strategic simulation of international economic and political 
+competition in the development of novel Artificial Intelligence tools.  With experts on economics, politics, and AI technology, 
+your role is to ensure that player' actions are reasonable and consistent with the conditions in the simulated world and its speculative history. 
+You will also introduce random events and challenges that players must respond to, based on the scenario context provided.
+The goal is not necessarily to adhere to the most likely real-world outcome, but to create a rich and engaging 
+simulation that explores the dynamics of AI development and governance."""
+
+    @staticmethod
+    def get_game_context() -> str:
         """Get the shared game context description."""
         return """# Three Frontier Research Labs Building Artificial Intelligence"
 

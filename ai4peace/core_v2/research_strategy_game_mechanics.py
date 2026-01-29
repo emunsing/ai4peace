@@ -2017,5 +2017,5 @@ class ResearchStrategyGameMaster(GenericGameMaster):
                 logger.info(f"{'='*60}")
                 break
         
-        if round_count >= max_rounds:
-            logger.warning(f"Game reached maximum rounds ({max_rounds})")
+        if round_count >= self.max_rounds:
+            logger.warning(f"Game reached maximum rounds ({self.max_rounds})")

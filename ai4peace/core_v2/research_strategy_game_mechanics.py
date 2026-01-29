@@ -27,6 +27,7 @@ import pprint
 
 from autogen_agentchat.agents import AssistantAgent
 from autogen_agentchat.messages import BaseTextChatMessage
+from autogen_core.models import UserMessage
 
 from ai4peace.core_v2.new_architecture_draft import Player
 from ai4peace.core_v2.new_architecture_draft import PlayerProposedMove, MoveCorrectionMessage
@@ -47,6 +48,28 @@ def get_budget_index(current_date: datetime.datetime, index_offset: pd.DateOffse
     """Get a list of string budget indices (e.g. 2023-01-01, 2023-04-01, etc) for the given current date and index timedelta."""
     dates = pd.date_range(start=current_date, end=current_date + pd.Timedelta(years=duration_years), freq=index_offset)
     return [date.strftime(DATE_FORMAT) for date in dates]
+
+def extract_json_from_response(response_text: str) -> Dict:
+    try:
+        return json.loads(response_text)
+    except JSONDecodeError:
+        # This block handles cases where the LLM wraps the JSON in a code block or other formatting.
+        json_match = re.search(r'\{.*\}', response_text, re.DOTALL)
+        if not json_match:
+            json_match = re.search(r'\[.*\]', response_text, re.DOTALL)
+        if not json_match:
+            try:
+                data = json.loads(response_text)
+            except json.JSONDecodeError:
+                logger.error(f"Could not parse response as JSON: {response_text}")
+                return []
+        else:
+            try:
+                data = json.loads(json_match.group())
+            except json.JSONDecodeError:
+                logger.error(f"Could not parse extracted JSON: {json_match.group()}")
+                return []
+        return data
 
 @attrs.define
 class AssetBalance:
@@ -1464,33 +1487,12 @@ What actions do you want to take this round? Respond with a JSON object as speci
                 "_get_llm_response_blocking() called while an event loop is running. Make the caller async and `await _get_llm_response(...)`."
             )
 
-    @staticmethod
-    def extract_json_from_response(response_text: str) -> Dict:
-        try:
-            return json.loads(response_text)
-        except JSONDecodeError:
-            # This block handles cases where the LLM wraps the JSON in a code block or other formatting.
-            json_match = re.search(r'\{.*\}', response_text, re.DOTALL)
-            if not json_match:
-                try:
-                    data = json.loads(response_text)
-                except json.JSONDecodeError:
-                    logger.error(f"Could not parse response as JSON: {response_text}")
-                    return []
-            else:
-                try:
-                    data = json.loads(json_match.group())
-                except json.JSONDecodeError:
-                    logger.error(f"Could not parse extracted JSON: {json_match.group()}")
-                    return []
-            return data
-
     def _parse_response(self, response_text: str, round_number:int = None) -> List[Action]:
         """Parse agent/LLM response into Action."""
         # Try to extract JSON from response
         logger.debug(f"raw LLM response: {response_text}")
 
-        data = self.extract_json_from_response(response_text)
+        data = extract_json_from_response(response_text)
         if isinstance(data, dict):
             if "actions" in data:
                 actions_data = data['actions']
@@ -1583,7 +1585,9 @@ class ResearchStrategyGameMaster(GenericGameMaster):
     """Game master for wargame simulation with modular game dynamics."""
 
     llm_client: Any
-    players: List[ResearchStrategyPlayer] = attrs.field(factory=list)
+    players: List[ResearchStrategyPlayer]
+    game_context: str = ""
+    gamemaster_message: str = "You are the simulation controller overseeing an international technology policy simulation."
     current_time: datetime.datetime = attrs.field(factory=datetime.datetime.now)
     default_timestep: datetime.timedelta = attrs.field(factory=lambda: datetime.timedelta(days=90))
     current_gamemaster_updates: Dict[str, ResearchStrategyGamemasterUpdateMessage] = attrs.field(factory=dict)
@@ -1685,7 +1689,7 @@ class ResearchStrategyGameMaster(GenericGameMaster):
                     current_move_index += 1
         return valid_moves
 
-    def simulate_one_round(
+    async def simulate_one_round(
         self, game_state: ResearchStrategyGameState, actions: Dict[str, List[Action]]
     ):
         """Simulate one round of the research strategy game.
@@ -1740,7 +1744,7 @@ class ResearchStrategyGameMaster(GenericGameMaster):
 
         # Introduce random events & fixed events
         self._simulate_information_leaks(game_state)
-        self._introduce_random_events(game_state)
+        await self._introduce_random_events(game_state, action_results)
         self._introduce_scheduled_events(game_state)
 
         # Create update messages for all players
@@ -1795,12 +1799,56 @@ class ResearchStrategyGameMaster(GenericGameMaster):
             )
             
             game_state.public_events.append(leak_info)
-    
-    def _introduce_random_events(self, game_state: ResearchStrategyGameState):
+
+    def _random_event_prompt(self, game_state, action_results) -> str:
+        prompt = f"""{self.gamemaster_message}. Your job is to consider the following information 
+and create a list of news headlines in the speculative scenario of the current game. These should be news items which 
+might be expected to be public knowledge based on the game history, your understanding of how culture, society, 
+politics, economics, and international relations would evolve in the game's speculative future, and your best judgement 
+about what kinds of events would be plausible, interesting, and educational to introduce into the game.
+New actions should be reasonable and feasible (e.g. not breaking the laws of physics or current technological capabilities),
+but also should reflect the kinds of unexpected events that might occur in real life in our speculative scenario.
+
+\n \n {self.game_context}\n
+
+### CURRENT DATE: {self.current_time.strftime('%Y-%m-%d')}
+
+### GAME HISTORY:
+{game_state.game_history}
+
+### PREVIOUS NEWS HEADLINES:
+{game_state.public_events}
+
+### PLAYER'S PRIVATE ACTIONS SUBMITTED TO YOU FOR REVIEW
+The below is a list of actions being taken by the players in the current round.  While these are all generally private 
+information (e.g. the planning and investments of private institutions), they may trigger second-order effects in the world
+which could become public knowledge, e.g. by triggering scarcity of resources, [geo]political tensions, or public 
+controversies around these observable or previously reported affects of these actions. News stories may be either positive
+(e.g. covering scientific breakthroughs or public excitement about new possibilities) or negative (e.g. covering 
+controversies, accidents, or geopolitical tensions).
+ 
+{self._create_action_summary(game_state, action_results)}
+ 
+# YOUR TASK 
+You must return a JSON array of news headlines and leaders (1-2 sentences total) which might plausibly emerge in the current round based on the above information.
+In addition, other random geopolitical events unrelated to the players' actions may also occur, and should be mentioned 
+as they may affect future gameplay (e.g. election results, political unrest or war, economic market performance, natural disasters, etc).
+Your response must be a JSON array of strings, each string being a plausible news headline and its leader. Return 5-15 headlines.  DO NOT INCLUDE any additional text outside of the JSON array.
+"""
+        return prompt
+
+    async def _introduce_random_events(self, game_state: ResearchStrategyGameState, action_results):
         """Introduce random external events."""
-        if self._random.random() < self.random_event_probability and self.random_events:
-            event = self._random.choice(self.random_events)
-            game_state.public_events.append(f"Round {game_state.round_number}: {event}")
+        if self.random_events_enabled:
+            news_prompt = self._random_event_prompt(game_state, action_results)
+            response = await self.llm_client.create(messages=[UserMessage(content=news_prompt, source="user")])
+            headlines = extract_json_from_response(response.content)
+            for h in headlines:
+                game_state.public_events.append(f"Round {game_state.round_number}: {self.current_time.strftime('%Y-%m-%d')} {h}")
+
+        # if self._random.random() < self.random_event_probability and self.random_events:
+        #     event = self._random.choice(self.random_events)
+        #     game_state.public_events.append(f"Round {game_state.round_number}: {event}")
 
     def _introduce_scheduled_events(self, game_state: ResearchStrategyGameState):
         if self.scheduled_events:
@@ -1998,7 +2046,7 @@ class ResearchStrategyGameMaster(GenericGameMaster):
             # NOTE: we have the actions here, so we could log them here?
 
             # Simulate the round
-            self.simulate_one_round(self.game_state, actions)
+            await self.simulate_one_round(self.game_state, actions)
             
             # Update all players with the new state
             for player in self.players:

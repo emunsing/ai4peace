@@ -33,7 +33,7 @@ class BasicAIRaceScenario(GameScenario):
     max_rounds: int = 3
     scheduled_events: Dict[int, str] = attrs.field(default=SCHEDULED_EVENTS)
     random_events: List[str] = attrs.field(default=RANDOM_EVENTS)
-    random_events_enabled: bool = False
+    random_events_enabled: bool = True
 
     def create_game_state(self, start_time: Optional[datetime.datetime] = None) -> ResearchStrategyGameState:
         """Create initial game state for the basic AI race scenario."""
@@ -68,6 +68,7 @@ class BasicAIRaceScenario(GameScenario):
         gamemaster = ResearchStrategyGameMaster(
             llm_client=self.llm_client,
             players=players,
+            game_context=self.get_game_context(),
             current_time=game_state.current_date,
             default_timestep=datetime.timedelta(days=90),
             current_gamemaster_updates={},

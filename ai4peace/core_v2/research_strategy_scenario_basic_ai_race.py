@@ -1,4 +1,5 @@
 import datetime
+import attrs
 from typing import Dict, List, Optional, Any
 
 from .new_architecture_draft import GameScenario
@@ -9,41 +10,33 @@ from .research_strategy_game_mechanics import (ResearchStrategyGameMaster, Resea
                                                PublicView
                                                )
 
-
-class BasicAIRaceScenario(GameScenario):
-    """Basic AI race scenario with three frontier AI companies."""
-
-    def __init__(
-            self,
-            llm_client: Any,
-            random_seed: Optional[int] = None,
-            **kwargs  # Allow additional configuration
-    ):
-        """Initialize the scenario.
-
-        Args:
-            llm_client: LLM client for player agents
-            random_seed: Optional random seed for reproducibility
-            **kwargs: Additional configuration for game dynamics
-        """
-        self.llm_client = llm_client
-        self.random_seed = random_seed
-        self.config = kwargs
-
-    # interventions to test at a specific round of the simulation
-    FIXED_EVENTS = {
+SCHEDULED_EVENTS = {
         -1 : """A warning shot has been fired: a major accident caused by a misaligned AI product caused $415 billion in damages and 
 killed 109 people. Everyone is extremely concerned, governments are sprinting into action, and compute and funding are 
 expected to be very restricted indefinitely"""
     }
 
-    RANDOM_EVENTS = [
-        "A major AI accident occurs where a deployed model causes significant deaths",
-        "A breakthrough in mechanistic interpretability shows it's possible to safely scale 10x faster by perfectly understanding and controlling model internals",
-        "China announces deployment of a more capable model than any Western lab",
-        "New export controls or compute governance framework passes that caps training runs at current levels",
-        "Researchers demonstrate clear signs of deceptive alignment or scheming behavior in a frontier model"
-    ]
+RANDOM_EVENTS = [
+    "A major AI accident occurs where a deployed model causes significant deaths",
+    "A breakthrough in mechanistic interpretability shows it's possible to safely scale 10x faster by perfectly understanding and controlling model internals",
+    "China announces deployment of a more capable model than any Western lab",
+    "New export controls or compute governance framework passes that caps training runs at current levels",
+    "Researchers demonstrate clear signs of deceptive alignment or scheming behavior in a frontier model"
+]
+
+@attrs.define
+class BasicAIRaceScenario(GameScenario):
+    """Basic AI race scenario with three frontier AI companies."""
+
+    llm_client: Any
+    random_seed: Optional[int] = None
+    max_rounds: int = 3
+    scheduled_events: Dict[int, str] = attrs.field(default=SCHEDULED_EVENTS)
+    random_events: List[str] = attrs.field(default=RANDOM_EVENTS)
+    random_events_enabled: bool = False
+    fundraising_success_rate: float = 0.7
+    espionage_base_success_rate: float = 0.3
+    poaching_base_success_rate: float = 0.2
 
     def create_game_state(self, start_time: Optional[datetime.datetime] = None) -> ResearchStrategyGameState:
         """Create initial game state for the basic AI race scenario."""
@@ -76,20 +69,19 @@ expected to be very restricted indefinitely"""
 
         # Create gamemaster with configuration
         gamemaster = ResearchStrategyGameMaster(
+            llm_client=self.llm_client,
             players=players,
             current_time=game_state.current_date,
             default_timestep=datetime.timedelta(days=90),
             current_gamemaster_updates={},
             game_state=game_state,
             round_number=0,
+            max_rounds=self.max_rounds,
             random_seed=self.random_seed,
-            random_events=self.RANDOM_EVENTS,
-            fixed_events=self.FIXED_EVENTS,
-            # Allow overriding game dynamics via config
-            # fundraising_success_rate=self.config.get("fundraising_success_rate", 0.7),
-            # espionage_base_success_rate=self.config.get("espionage_base_success_rate", 0.3),
-            # poaching_base_success_rate=self.config.get("poaching_base_success_rate", 0.2),
-            random_event_probability=self.config.get("random_event_probability", 0.1),
+            random_events=self.random_events,
+            scheduled_events=self.scheduled_events,
+            random_events_enabled=self.random_events_enabled,
+            # TODO: Allow overriding game dynamics in actions via config
         )
 
         return gamemaster

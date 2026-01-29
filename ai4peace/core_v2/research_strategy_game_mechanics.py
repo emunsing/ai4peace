@@ -1581,7 +1581,8 @@ PREVIOUS PROPOSAL:\n
 @attrs.define
 class ResearchStrategyGameMaster(GenericGameMaster):
     """Game master for wargame simulation with modular game dynamics."""
-    
+
+    llm_client: Any
     players: List[ResearchStrategyPlayer] = attrs.field(factory=list)
     current_time: datetime.datetime = attrs.field(factory=datetime.datetime.now)
     default_timestep: datetime.timedelta = attrs.field(factory=lambda: datetime.timedelta(days=90))
@@ -1592,8 +1593,9 @@ class ResearchStrategyGameMaster(GenericGameMaster):
     ))
     round_number: int = 0
     random_seed: Optional[int] = None
+    random_events_enabled: bool = False
     random_events: List[str] = attrs.field(factory=list)
-    fixed_events: Dict[int, str] = {}
+    scheduled_events: Dict[int, str] = {}
 
     # Action type to class mapping
     action_type_to_class: Dict[ActionType, type] = attrs.field(default=ACTION_TYPE_TO_CLASS)
@@ -1605,6 +1607,7 @@ class ResearchStrategyGameMaster(GenericGameMaster):
     information_leak_probability: float = 0.05
     random_event_probability: float = 0.1
 
+    max_rounds:int = 2
     max_attempts: int = 3  # Max attempts for move correction loops
 
     _random: random.Random = attrs.field(init=False)
@@ -1738,7 +1741,7 @@ class ResearchStrategyGameMaster(GenericGameMaster):
         # Introduce random events & fixed events
         self._simulate_information_leaks(game_state)
         self._introduce_random_events(game_state)
-        self._introduce_fixed_events(game_state)
+        self._introduce_scheduled_events(game_state)
 
         # Create update messages for all players
         self._create_update_messages(game_state, action_results)
@@ -1799,9 +1802,9 @@ class ResearchStrategyGameMaster(GenericGameMaster):
             event = self._random.choice(self.random_events)
             game_state.public_events.append(f"Round {game_state.round_number}: {event}")
 
-    def _introduce_fixed_events(self, game_state: ResearchStrategyGameState):
-        if self.fixed_events:
-             for round, event in self.fixed_events.items():
+    def _introduce_scheduled_events(self, game_state: ResearchStrategyGameState):
+        if self.scheduled_events:
+             for round, event in self.scheduled_events.items():
                 if game_state.round_number == int(round):
                     game_state.public_events.append(f"Round {game_state.round_number}: {event}")
     
@@ -1966,7 +1969,7 @@ class ResearchStrategyGameMaster(GenericGameMaster):
         }
         script_logger.info({"round" : self.game_state.round_number, "log_type" : "game_state", "game_state" : game_state_dict})
 
-    async def run_simulation(self, max_rounds=3):
+    async def run_simulation(self):
         """Run the full simulation."""
         logger.info("Starting research strategy simulation")
         logger.info(f"Players: {[p.name for p in self.players]}")
@@ -1981,7 +1984,7 @@ class ResearchStrategyGameMaster(GenericGameMaster):
         
         self.log_game_state()
         self.log_game_state_dict()
-        while round_count < max_rounds:
+        while round_count < self.max_rounds:
             round_count += 1
             logger.info(f"\n{'='*60}")
             logger.info(f"Round {round_count}")

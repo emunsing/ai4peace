@@ -1680,7 +1680,7 @@ class ResearchStrategyGameMaster(GenericGameMaster):
                         error_message=validation_error
                     )
                     logger.debug("Requesting correction: " + validation_error)
-                    updated_move = player.correct_moves(correction)
+                    updated_move = await player.correct_moves(correction)
                     moves_to_validate[current_move_index] = updated_move
                     current_move_index += 1
         return valid_moves

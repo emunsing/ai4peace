@@ -34,9 +34,6 @@ class BasicAIRaceScenario(GameScenario):
     scheduled_events: Dict[int, str] = attrs.field(default=SCHEDULED_EVENTS)
     random_events: List[str] = attrs.field(default=RANDOM_EVENTS)
     random_events_enabled: bool = False
-    fundraising_success_rate: float = 0.7
-    espionage_base_success_rate: float = 0.3
-    poaching_base_success_rate: float = 0.2
 
     def create_game_state(self, start_time: Optional[datetime.datetime] = None) -> ResearchStrategyGameState:
         """Create initial game state for the basic AI race scenario."""

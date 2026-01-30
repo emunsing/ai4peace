@@ -1858,7 +1858,7 @@ class ResearchStrategyGameMaster(GenericGameMaster):
             
             game_state.public_events.append(leak_info)
 
-    def _random_event_prompt(self, game_state, action_results, n_headlines="5-15") -> str:
+    def _random_event_prompt(self, game_state, action_results) -> str:
         prompt = f"""{self.gamemaster_message}. Your job is to consider the following information 
 and create a list of news headlines in the speculative scenario of the current game. These should be news items which 
 might be expected to be public knowledge based on the game history, your understanding of how culture, society, 
@@ -1898,7 +1898,7 @@ Your response must be a JSON array of strings, each string being a plausible new
     async def _introduce_random_events(self, game_state: ResearchStrategyGameState, action_results):
         """Introduce random external events."""
         if self.random_events_enabled:
-            news_prompt = self._random_event_prompt(game_state, action_results, self.str_n_headlines)
+            news_prompt = self._random_event_prompt(game_state, action_results)
             response = await self.llm_client.create(messages=[UserMessage(content=news_prompt, source="user")])
             headlines = extract_json_from_response(response.content)
             for h in headlines:

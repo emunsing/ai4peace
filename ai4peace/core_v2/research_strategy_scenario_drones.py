@@ -1,6 +1,7 @@
 """ResearchStrategy scenario implementations using the new architecture."""
 
 import datetime
+import attrs
 from typing import Dict, List, Optional, Any
 
 from .new_architecture_draft import GameScenario
@@ -11,21 +12,26 @@ from .research_strategy_game_mechanics import (ResearchStrategyGameMaster, Resea
                                                PublicView
                                                )
 
+SCHEDULED_EVENTS = {
+    6 : """BREAKING NEWS: Ceasefire finally declared between Russia and Ukraine. Peace negotiations imminent""",
+    -2 : """BREAKING NEWS: An international policy has been unanimously adopted banning the development and use of fully-autonomous weapons""",
+    -3 : """BREAKING NEWS: Multiple global leaders are escalating threats to go nuclear"""
+}
 
+RANDOM_EVENTS = []
 
+@attrs.define
 class DroneArmsControlScenario(GameScenario):
     """Drone arms control scenario implementation."""
-    
-    def __init__(
-        self,
-        llm_client: Any,
-        random_seed: Optional[int] = None,
-        **kwargs  # Allow additional configuration
-    ):
-        """Initialize the scenario."""
-        self.llm_client = llm_client
-        self.random_seed = random_seed
-        self.config = kwargs
+
+    llm_client: Any
+    random_seed: Optional[int] = None
+    max_rounds: int = 3
+    scheduled_events: Dict[int, str] = attrs.field(default=SCHEDULED_EVENTS)
+    random_events: List[str] = attrs.field(default=RANDOM_EVENTS)
+    random_events_enabled: bool = True
+    str_n_headlines: str = "5-15"
+    n_players: int = 5
 
     
     def create_game_state(self, start_time: Optional[datetime.datetime] = None) -> ResearchStrategyGameState:
@@ -59,6 +65,7 @@ class DroneArmsControlScenario(GameScenario):
         players = self.create_players()
         
         gamemaster = ResearchStrategyGameMaster(
+            llm_client = self.llm_client,
             players=players,
             current_time=game_state.current_date,
             default_timestep=datetime.timedelta(days=90),
@@ -67,6 +74,10 @@ class DroneArmsControlScenario(GameScenario):
             round_number=0,
             random_seed=self.random_seed,
             random_events=[],  # Can add scenario-specific events
+            max_rounds=self.max_rounds,
+            random_events_enabled=self.random_events_enabled,
+            scheduled_events = self.scheduled_events,
+            str_n_headlines=self.str_n_headlines
             # TODO: more examples of how best to override config
         )
         

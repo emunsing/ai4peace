@@ -378,9 +378,26 @@ class CreateResearchProjectAction(Action):
     @property
     def action_type(self) -> ActionType:
         return ActionType.CREATE_RESEARCH_PROJECT
+    
+
+    def as_dict(self) -> dict[str, str|float]:
+        return {
+            "project_name" : self.project_name,
+            "description" : self.description,
+            "target_completion_date": self.target_completion_date,
+            "annual_budget" : self.annual_budget, 
+            "required_assets": {
+                "technical_capability": self.required_assets["technical_capability"], 
+                "capital": self.required_assets["capital"],
+                "human": self.required_assets["human"],
+            },
+            "type": "create_research_project",
+        }
+
 
     def validate_action(self, game_state: ResearchStrategyGameState, players: list["ResearchStrategyPlayer"], gamemaster: "ResearchStrategyGameMaster") -> Optional[str]:
         error = super().validate_action(game_state, players, gamemaster)
+
         if error:
             return error
 
@@ -396,6 +413,14 @@ class CreateResearchProjectAction(Action):
             capital=self.required_assets.get("capital", 0),
             human=self.required_assets.get("human", 0),
         )
+
+        logger.info(f"""
+                    Research pitch by {self.initiating_character_name}:{self.project_name}
+                    at budget {self.annual_budget} (max {player_state.private_info.budget.get(str(game_state.current_date.year), 0.0)})
+                    and capital {self.required_assets.get("capital", 0)} (max {player_state.private_info.true_asset_balance.capital})
+                    """)
+        script_logger.info({"round" : game_state.round_number,"log_type" : "try_create_research_project", "player" : self.initiating_character_name,
+                            "project_details" : self.as_dict()})
 
         current = player_state.private_info.true_asset_balance
         if (current.technical_capability < required.technical_capability or
@@ -880,6 +905,14 @@ class PoachTalentAction(Action):
     @property
     def action_type(self) -> ActionType:
         return ActionType.POACH_TALENT
+    
+    def as_dict(self) -> dict[str, str|float]:
+        return {
+            "target_player" : self.target_player,
+            "budget" : self.budget,
+            "description" : self.description,
+            "type": "poach_talent",
+        }
 
     def validate_action(self, game_state: ResearchStrategyGameState, players: list["ResearchStrategyPlayer"], gamemaster: "ResearchStrategyGameMaster") -> Optional[str]:
         error = super().validate_action(game_state, players, gamemaster)
@@ -1136,7 +1169,7 @@ class MessageAction(Action):
         error = super().validate_action(game_state, players, gamemaster)
         if error:
             return error
-
+        logger.info("A MESSAGE WAS SENT!")
         if not self.to_character:
             return "Message requires recipient"
 
@@ -1490,9 +1523,11 @@ What actions do you want to take this round? Respond with a JSON object as speci
                 "_get_llm_response_blocking() called while an event loop is running. Make the caller async and `await _get_llm_response(...)`."
             )
 
-    def _parse_response(self, response_text: str, round_number:int = None) -> List[Action]:
+    def _parse_response(self, response_text: str, round_number:int = None, prompt_source:str = None) -> List[Action]:
         """Parse agent/LLM response into Action."""
         # Try to extract JSON from response
+        # TODO: right now all LLM calls go through this function — we'll have multiple types of LLM calls/responses and
+        # will want to handle them differently
         logger.debug(f"raw LLM response: {response_text}")
 
         data = extract_json_from_response(response_text)
@@ -1514,7 +1549,12 @@ What actions do you want to take this round? Respond with a JSON object as speci
         if logger.isEnabledFor(logging.DEBUG):
             logger.debug(f"{self.name} - Parsing {len(actions_data)} actions")
 
-        script_logger.info({"round" : round_number, "log_type" : "raw_llm_actions_messages",
+        if prompt_source == "move_correction" :
+            # note that this is an attempt to correct a specific move
+            script_logger.info({"round" : round_number, "log_type" : "llm_corrected_move",
+                "player" : self.name, "llm_response" : data})
+        else:
+            script_logger.info({"round" : round_number, "log_type" : "raw_llm_actions_messages",
                     "player" : self.name, "llm_response" : data})
 
         # Create moves from actions
@@ -1567,18 +1607,32 @@ What actions do you want to take this round? Respond with a JSON object as speci
         for i in range(self.max_attempts):
             correction_msg = f"""
 Your proposed move described below was rejected, due to the following reason: {move_modifications.error_message}. Please update this specific proposed action to correct the issue. Do not include other actions; just provide one action in your response.
-You currently have the following limited resources, and must spend them wisely: {attrs.asdict(self.attributes.private_info.true_asset_balance)}\n
+You currently have the following limited resources (the maximum you can spend on this and any future actions!) and must spend them wisely: {attrs.asdict(self.attributes.private_info.true_asset_balance)}\n
 PREVIOUS PROPOSAL:\n
 {json.dumps(original_move_obj)}"""
             response = await self._get_llm_response(correction_msg)
 
-            updated_moves = self._parse_response(response)
+            updated_moves = self._parse_response(response, round_number, prompt_source="move_correction")
+            logger.info(f"GM Correction: Orig: {json.dumps(original_move_obj)}, error: {move_modifications.error_message}")
+            try:
+                move_to_dict = move_modifications.original_move.as_dict()
+                script_logger.info({"round" : round_number,"log_type" : "gm_action_correction",
+                    "player" : self.name, "status" : "fail",
+                    "original_move" : move_to_dict,
+                    "correction" :  move_modifications.error_message})
+            except:
+                logger.info(f"undefined to_dict() for: {json.dumps(original_move_obj)}")
+                script_logger.info({"round" : round_number,"log_type" : "gm_action_correction",
+                    "player" : self.name, "status" : "fail",
+                    "original_move" : original_move_obj,
+                    "correction" :  move_modifications.error_message})
+
             if updated_moves:
                 return updated_moves[0]
-        script_logger.info({"round" : round_number,"log_type" : "gm_action_correction",
-                            "player" : self.name, "status" : "fail",
-                            "original_move" : move_modifications.original_move.to_dict(),
-                            "correction" :  move_modifications.error_message})
+        
+        
+        
+        
 
         return move_modifications.original_move  # Fallback to original move if correction fails
 
@@ -1601,6 +1655,7 @@ class ResearchStrategyGameMaster(GenericGameMaster):
     round_number: int = 0
     random_seed: Optional[int] = None
     random_events_enabled: bool = False
+    str_n_headlines: Optional[str] = "5-15"
     random_events: List[str] = attrs.field(factory=list)
     scheduled_events: Dict[int, str] = {}
 
@@ -1836,7 +1891,7 @@ controversies, accidents, or geopolitical tensions).
 You must return a JSON array of news headlines and leaders (1-2 sentences total) which might plausibly emerge in the current round based on the above information.
 In addition, other random geopolitical events unrelated to the players' actions may also occur, and should be mentioned 
 as they may affect future gameplay (e.g. election results, political unrest or war, economic market performance, natural disasters, etc).
-Your response must be a JSON array of strings, each string being a plausible news headline and its leader. Return 5-15 headlines.  DO NOT INCLUDE any additional text outside of the JSON array.
+Your response must be a JSON array of strings, each string being a plausible news headline and its leader. Return {self.str_n_headlines} headlines.  DO NOT INCLUDE any additional text outside of the JSON array.
 """
         return prompt
 

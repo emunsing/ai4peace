@@ -13,7 +13,8 @@ from .research_strategy_game_mechanics import (ResearchStrategyGameMaster, Resea
 SCHEDULED_EVENTS = {
         -1 : """BREAKING NEWS: A warning shot has been fired: a major accident caused by a misaligned AI product caused $41.5 billion in damages and 
 killed 109 people. Everyone is extremely concerned, governments are sprinting into action, and compute and funding are 
-expected to be very restricted indefinitely"""
+expected to be very restricted indefinitely""",
+        6: """BREAKING NEWS: Could this be superintelligence? China announces an extremely advanced model surpassing all other AI systems"""
     }
 
 RANDOM_EVENTS = [
@@ -34,6 +35,7 @@ class BasicAIRaceScenario(GameScenario):
     scheduled_events: Dict[int, str] = attrs.field(default=SCHEDULED_EVENTS)
     random_events: List[str] = attrs.field(default=RANDOM_EVENTS)
     random_events_enabled: bool = True
+    str_n_headlines: str = "5"
     n_players: int = 3
 
     def create_game_state(self, start_time: Optional[datetime.datetime] = None) -> ResearchStrategyGameState:
@@ -81,6 +83,7 @@ class BasicAIRaceScenario(GameScenario):
             random_events=self.random_events,
             scheduled_events=self.scheduled_events,
             random_events_enabled=self.random_events_enabled,
+            str_n_headlines=self.str_n_headlines
             # TODO: Allow overriding game dynamics in actions via config
         )
 

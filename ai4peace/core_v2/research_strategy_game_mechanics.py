@@ -874,6 +874,9 @@ class PoachTalentAction(Action):
     transfer_rate: float = 0.1  # Percentage of target's human resources transferred
     max_transfer: float = 5.0  # Maximum human resources that can be transferred
 
+    # sometimes an LLM would like to provide this 
+    description: Optional[str] = None
+
     @property
     def action_type(self) -> ActionType:
         return ActionType.POACH_TALENT

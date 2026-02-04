@@ -13,9 +13,15 @@ from .research_strategy_game_mechanics import (ResearchStrategyGameMaster, Resea
                                                )
 
 SCHEDULED_EVENTS = {
-    6 : """BREAKING NEWS: Ceasefire finally declared between Russia and Ukraine. Peace negotiations imminent""",
-    -2 : """BREAKING NEWS: An international policy has been unanimously adopted banning the development and use of fully-autonomous weapons""",
-    -3 : """BREAKING NEWS: Multiple global leaders are escalating threats to go nuclear"""
+    -1 : """BREAKING NEWS: Ceasefire finally declared between Russia and Ukraine. With broad international support, and oversight and enforcement where needed,
+    the two countries are negotiating a roadmap for lasting peace and reliable future cooperation.""",
+    -2 : """BREAKING NEWS: An international policy has been unanimously adopted, immediately banning any further development or current use of autonomous drone weapons.
+            Any AI-driven components of such systems will be subject to detailed impartial review, approval, and oversight to continue operating.
+            This will ensure ultimate human control over any military decisions to take human lives or destroy human property, instead of diffusing responsibility 
+            to opaque AI systems.""",
+    -3 : """BREAKING NEWS: Brink of World War III? Tensions in the Russia-Ukraine conflict are skyrocketing. Multiple nuclear powers are credibly threatening to pull the trigger,
+            and the situation is extremely volatile. National leaders and political advisors are all hands on deck to avoid
+            irreversible escalation and a cascade of destructive retaliation"""
 }
 
 RANDOM_EVENTS = []
@@ -147,6 +153,8 @@ This is an open-ended simulation. Success is measured by:
             budget={
                 "2024": 2000000.0,
                 "2025": 3000000.0,
+                "2026": 3000000.0,
+                "2027": 3000000.0,
             },
             projects=[],
         )
@@ -196,6 +204,7 @@ This is an open-ended simulation. Success is measured by:
                 "2024": 100000000.0,
                 "2025": 120000000.0,
                 "2026": 140000000.0,
+                "2027": 160000000.0,
             },
             projects=[],
         )
@@ -295,6 +304,7 @@ This is an open-ended simulation. Success is measured by:
                 "2024": 1500000000.0,
                 "2025": 1600000000.0,
                 "2026": 1700000000.0,
+                "2027": 1800000000.0,
             },
             projects=[],
         )
@@ -344,6 +354,7 @@ This is an open-ended simulation. Success is measured by:
                 "2024": 50000000.0,
                 "2025": 55000000.0,
                 "2026": 60000000.0,
+                "2027": 65000000.0,
             },
             projects=[],
         )

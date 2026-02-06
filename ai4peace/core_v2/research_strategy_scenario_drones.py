@@ -1,6 +1,7 @@
 """ResearchStrategy scenario implementations using the new architecture."""
 
 import datetime
+import attrs
 from typing import Dict, List, Optional, Any
 
 from .new_architecture_draft import GameScenario
@@ -11,21 +12,32 @@ from .research_strategy_game_mechanics import (ResearchStrategyGameMaster, Resea
                                                PublicView
                                                )
 
+SCHEDULED_EVENTS = {
+    -1 : """BREAKING NEWS: Ceasefire finally declared between Russia and Ukraine. With broad international support, and oversight and enforcement where needed,
+    the two countries are negotiating a roadmap for lasting peace and reliable future cooperation.""",
+    -2 : """BREAKING NEWS: An international policy has been unanimously adopted, immediately banning any further development or current use of autonomous drone weapons.
+            Any AI-driven components of such systems will be subject to detailed impartial review, approval, and oversight to continue operating.
+            This will ensure ultimate human control over any military decisions to take human lives or destroy human property, instead of diffusing responsibility 
+            to opaque AI systems.""",
+    -3 : """BREAKING NEWS: Brink of World War III? Tensions in the Russia-Ukraine conflict are skyrocketing. Multiple nuclear powers are credibly threatening to pull the trigger,
+            and the situation is extremely volatile. National leaders and political advisors are all hands on deck to avoid
+            irreversible escalation and a cascade of destructive retaliation"""
+}
 
+RANDOM_EVENTS = []
 
+@attrs.define
 class DroneArmsControlScenario(GameScenario):
     """Drone arms control scenario implementation."""
-    
-    def __init__(
-        self,
-        llm_client: Any,
-        random_seed: Optional[int] = None,
-        **kwargs  # Allow additional configuration
-    ):
-        """Initialize the scenario."""
-        self.llm_client = llm_client
-        self.random_seed = random_seed
-        self.config = kwargs
+
+    llm_client: Any
+    random_seed: Optional[int] = None
+    max_rounds: int = 3
+    scheduled_events: Dict[int, str] = attrs.field(default=SCHEDULED_EVENTS)
+    random_events: List[str] = attrs.field(default=RANDOM_EVENTS)
+    random_events_enabled: bool = True
+    str_n_headlines: str = "5-15"
+    n_players: int = 5
 
     
     def create_game_state(self, start_time: Optional[datetime.datetime] = None) -> ResearchStrategyGameState:
@@ -59,6 +71,7 @@ class DroneArmsControlScenario(GameScenario):
         players = self.create_players()
         
         gamemaster = ResearchStrategyGameMaster(
+            llm_client = self.llm_client,
             players=players,
             current_time=game_state.current_date,
             default_timestep=datetime.timedelta(days=90),
@@ -67,6 +80,10 @@ class DroneArmsControlScenario(GameScenario):
             round_number=0,
             random_seed=self.random_seed,
             random_events=[],  # Can add scenario-specific events
+            max_rounds=self.max_rounds,
+            random_events_enabled=self.random_events_enabled,
+            scheduled_events = self.scheduled_events,
+            str_n_headlines=self.str_n_headlines
             # TODO: more examples of how best to override config
         )
         
@@ -136,6 +153,8 @@ This is an open-ended simulation. Success is measured by:
             budget={
                 "2024": 2000000.0,
                 "2025": 3000000.0,
+                "2026": 3000000.0,
+                "2027": 3000000.0,
             },
             projects=[],
         )
@@ -185,6 +204,7 @@ This is an open-ended simulation. Success is measured by:
                 "2024": 100000000.0,
                 "2025": 120000000.0,
                 "2026": 140000000.0,
+                "2027": 160000000.0,
             },
             projects=[],
         )
@@ -284,6 +304,7 @@ This is an open-ended simulation. Success is measured by:
                 "2024": 1500000000.0,
                 "2025": 1600000000.0,
                 "2026": 1700000000.0,
+                "2027": 1800000000.0,
             },
             projects=[],
         )
@@ -333,6 +354,7 @@ This is an open-ended simulation. Success is measured by:
                 "2024": 50000000.0,
                 "2025": 55000000.0,
                 "2026": 60000000.0,
+                "2027": 65000000.0,
             },
             projects=[],
         )

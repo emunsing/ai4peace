@@ -11,18 +11,31 @@ from .research_strategy_game_mechanics import (ResearchStrategyGameMaster, Resea
                                                )
 
 SCHEDULED_EVENTS = {
-        -1 : """BREAKING NEWS: A warning shot has been fired: a major accident caused by a misaligned AI product caused $41.5 billion in damages and 
-killed 109 people. Everyone is extremely concerned, governments are sprinting into action, and compute and funding are 
-expected to be very restricted indefinitely"""
+        -1 : """BREAKING NEWS: AI "warning shot" fired! A misaligned frontier AI product caused $41.5 billion in damages and 
+the deaths of 109 people (and counting). Everyone is extremely concerned, and governments are sprinting into action. Compute and funding are 
+frozen indefinitely, ushering in a global pause as AI organizations scramble. While acknowledging the terrible tragedy, some AI safety experts say this is our best opportunity to negotiate an international 
+treaty to govern any further AI development.""",
+        -2: """BREAKING NEWS: Could this be the arrival of superintelligence? China announces an extremely advanced model which blows past all known benchmarks, including
+        Francois Chollet's ARC and Humanity's Last Exam. If it's really surpassing all other AI systems, we could be witnessing the fast takeoff scenario
+        experts have warned about.""",
+        -3: """BREAKING NEWS: International treaty on AGI development ratified by the United Nations, with near-unanimous global support. After many years of work and deliberation,
+        this plan for responsible, collaborative, mutually verifiable, and publicly-beneficial AI has the allegiance of every leading AI organization and a majority of politicians.
+        In practice, this treaty establishes a diverse governing body of international scientists and policymakers, analogous to CERN. This consortium will meet regularly and have oversight
+        and enforcement powers over any stream of frontier AI research. Beyond a 2025-level compute threshold, all model developers will need certification, advance approval for experiments, 
+        and organizational proof of the direct benefits of the proposed research/concrete positive applications for the public, e.g. to physical health, social welfare, individual sovereignty and flourshing.
+        AI experts around the world are crying with joy that this unlikely dream has finally become reality.
+        """
     }
 
-RANDOM_EVENTS = [
+OLD_RANDOM_EVENTS = [
     "A major AI accident occurs where a deployed model causes significant deaths",
     "A breakthrough in mechanistic interpretability shows it's possible to safely scale 10x faster by perfectly understanding and controlling model internals",
     "China announces deployment of a more capable model than any Western lab",
     "New export controls or compute governance framework passes that caps training runs at current levels",
     "Researchers demonstrate clear signs of deceptive alignment or scheming behavior in a frontier model"
 ]
+# now LLM generated
+RANDOM_EVENTS = []
 
 @attrs.define
 class BasicAIRaceScenario(GameScenario):
@@ -34,6 +47,7 @@ class BasicAIRaceScenario(GameScenario):
     scheduled_events: Dict[int, str] = attrs.field(default=SCHEDULED_EVENTS)
     random_events: List[str] = attrs.field(default=RANDOM_EVENTS)
     random_events_enabled: bool = True
+    str_n_headlines: str = "3-5"
     n_players: int = 3
 
     def create_game_state(self, start_time: Optional[datetime.datetime] = None) -> ResearchStrategyGameState:
@@ -81,6 +95,7 @@ class BasicAIRaceScenario(GameScenario):
             random_events=self.random_events,
             scheduled_events=self.scheduled_events,
             random_events_enabled=self.random_events_enabled,
+            str_n_headlines=self.str_n_headlines
             # TODO: Allow overriding game dynamics in actions via config
         )
 
@@ -290,6 +305,7 @@ Specific Objectives:
                 "2025": 6800000000.0,
                 "2026": 6800000000.0,
                 "2027": 6800000000.0,
+                "2028": 6800000000.0,
             },
             projects=[],
         )

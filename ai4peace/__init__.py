@@ -1,42 +1,70 @@
-"""AI4Peace: Strategic Multi-Agent Simulation Platform for International Technology Policy."""
+"""Core v2 architecture for generalized multiplayer game simulations."""
 
-__version__ = "0.1.0"
-
-# Export main components
-from .core import (
+from .new_architecture_draft import (
+    Player,
+    GenericGameMaster,
+    GameScenario,
     GameState,
-    CharacterState,
-    AssetBalance,
-    ResearchProject,
-    GameAgent,
-    GameMaster,
-    Simulation,
-    run_simulation_sync,
-    Action,
-    ActionType,
+    PlayerState,
+    PlayerStateUpdates,
+    GamemasterUpdateMessage,
+    PlayerProposedMove,
+    MoveCorrectionMessage,
 )
 
-from .scenarios import (
-    create_game_state as create_drone_game_state,
-    get_game_context as get_drone_game_context,
-    get_research_topics,
-)
+from .research_strategy_game_mechanics import (ResearchStrategyGameMaster,
+                                               ResearchStrategyGameState,
+                                               ResearchStrategyPlayerState,
+                                               AssetBalance,
+                                               ResearchProject,
+                                               Message,
+                                               PrivateInfo,
+                                               PublicView,
+                                               ResearchStrategyPlayer,
+                                               ResearchStrategyGamemasterUpdateMessage,
+                                               ResearchStrategyPlayerStateUpdates,
+                                               ActionType,
+                                               EspionageAction,
+                                               MessageAction,
+                                               )
+
+from .research_strategy_scenario_drones import DroneArmsControlScenario
+from .research_strategy_scenario_basic_ai_race import BasicAIRaceScenario
 
 __all__ = [
-    # Core components
+    # Base architecture
+    "Player",
+    "GenericGameMaster",
+    "GameScenario",
     "GameState",
-    "CharacterState",
+    "PlayerState",
+    "PlayerStateUpdates",
+    "GamemasterUpdateMessage",
+    "PlayerProposedMove",
+    "MoveCorrectionMessage",
+    # ResearchStrategy state
+    "ResearchStrategyGameState",
+    "ResearchStrategyPlayerState",
     "AssetBalance",
     "ResearchProject",
-    "GameAgent",
-    "GameMaster",
-    "Simulation",
-    "run_simulation_sync",
-    "Action",
+    "Message",
+    "PrivateInfo",
+    "PublicView",
+    # ResearchStrategy actions
+    "ResearchStrategyPlayerProposedMove",
+    "ResearchStrategyMoveCorrectionMessage",
     "ActionType",
-    # Scenario utilities
-    "create_drone_game_state",
-    "get_drone_game_context",
-    "get_research_topics",
+    "ResearchProjectAction",
+    "EspionageAction",
+    "MessageAction",
+    # ResearchStrategy updates
+    "ResearchStrategyGamemasterUpdateMessage",
+    "ResearchStrategyPlayerStateUpdates",
+    # ResearchStrategy implementations
+    "ResearchStrategyPlayer",
+    "ResearchStrategyGameMaster",
+    # Scenarios
+    "BasicAIRaceScenario",
+    "DroneArmsControlScenario",
 ]
 

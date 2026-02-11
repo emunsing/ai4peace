@@ -2,14 +2,13 @@
 
 import random
 from json import JSONDecodeError
-from shutil import move
 import abc
-from .new_architecture_draft import PlayerStateUpdates, GamemasterUpdateMessage
+from ai4peace.new_architecture_draft import PlayerStateUpdates, GamemasterUpdateMessage
 
 
-from .new_architecture_draft import GenericGameMaster
+from ai4peace.new_architecture_draft import GenericGameMaster
 
-from typing import Dict, List, Optional, TYPE_CHECKING
+from typing import TYPE_CHECKING
 from enum import Enum
 import attrs
 
@@ -23,20 +22,19 @@ import asyncio
 import logging
 from typing import Optional, Any, Dict, List
 import datetime
-import pprint
 
 from autogen_agentchat.agents import AssistantAgent
 from autogen_agentchat.messages import BaseTextChatMessage
 from autogen_core.models import UserMessage
 
-from ai4peace.core_v2.new_architecture_draft import Player
-from ai4peace.core_v2.new_architecture_draft import PlayerProposedMove, MoveCorrectionMessage
+from ai4peace.new_architecture_draft import Player
+from ai4peace.new_architecture_draft import MoveCorrectionMessage
 
 import pandas as pd
 
 logger = logging.getLogger(__name__)
 
-from ai4peace.core.utils import get_transcript_logger
+from ai4peace.utils import get_transcript_logger
 script_logger = get_transcript_logger()
 
 from .new_architecture_draft import GameState, PlayerState
@@ -1395,7 +1393,7 @@ Always respond with valid JSON only, no additional text."""
 
         # NOTE: this is where we send the LLM the raw prompt
         response = await self._get_llm_response(prompt)
-        # from ai4peace.core_v2.test_tools import response_text_1
+        # from ai4peace.test_tools import response_text_1
         # response = response_text_1
 
         # Parse response into actions

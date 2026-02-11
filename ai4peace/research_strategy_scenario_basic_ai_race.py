@@ -2,8 +2,8 @@ import datetime
 import attrs
 from typing import Dict, List, Optional, Any
 
-from .new_architecture_draft import GameScenario
-from .research_strategy_game_mechanics import (ResearchStrategyGameMaster, ResearchStrategyPlayer, ResearchStrategyGameState,
+from ai4peace.new_architecture_draft import GameScenario
+from ai4peace.research_strategy_game_mechanics import (ResearchStrategyGameMaster, ResearchStrategyPlayer, ResearchStrategyGameState,
                                                ResearchStrategyPlayerState,
                                                AssetBalance,
                                                PrivateInfo,

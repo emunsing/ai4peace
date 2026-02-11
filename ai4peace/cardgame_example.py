@@ -4,7 +4,7 @@ from typing import Optional, Any
 
 import attrs
 
-from ai4peace.core_v2.new_architecture_draft import GameState, PlayerState, PlayerStateUpdates, GamemasterUpdateMessage, \
+from ai4peace.new_architecture_draft import GameState, PlayerState, PlayerStateUpdates, GamemasterUpdateMessage, \
     PlayerProposedMove, MoveCorrectionMessage, Player, logger, GenericGameMaster, GameScenario
 
 CARD_RANKS = ['A', '2', '3', '4', '5', '6', '7', '8', '9', '10', 'J', 'Q', 'K']

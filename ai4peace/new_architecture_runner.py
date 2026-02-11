@@ -6,9 +6,8 @@ import asyncio
 import multiprocessing
 import os.path
 from typing import Optional
-from ai4peace.core.simulation_runner import load_scenario_class, create_llm_client
-from ai4peace.core_v2.new_architecture_draft import GameScenario
-from ai4peace.core.utils import setup_logging
+from ai4peace.new_architecture_draft import GameScenario
+from ai4peace.utils import setup_logging, load_scenario_class, create_llm_client
 
 logger = logging.getLogger(__name__)
 logging.getLogger("httpx").setLevel(logging.WARNING)
@@ -22,8 +21,8 @@ logging.getLogger("httpx").setLevel(logging.WARNING)
 )
 @click.option(
     "--scenario",
-    default="ai4peace.core_v2.cardgame_example:GoFishScenario",
-    help="Scenario module path or file path (default: ai4peace.core_v2.cardgame_example:GoFishScenario)",
+    default="ai4peace.cardgame_example:GoFishScenario",
+    help="Scenario module path or file path (default: ai4peace.cardgame_example:GoFishScenario)",
 )
 @click.option(
     "--model",
@@ -69,7 +68,7 @@ def simulation_runner_cli(
     from the command line or imported and called programmatically.
 
     Example:
-        python -m ai4peace.core.new_architecture_draft --api-key $OPENAI_API_KEY --json-kwargs '{"n_players": 3, "random_seed": 42}'
+        python -m ai4peace.new_architecture_draft --api-key $OPENAI_API_KEY --json-kwargs '{"n_players": 3, "random_seed": 42}'
     """
     if n_jobs > 1:
         run_multiprocessing_simulations(

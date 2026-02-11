@@ -1,17 +1,11 @@
 import datetime
 import logging
-import asyncio
-import os
-from typing import Optional
 
-from autogen_ext.models.openai import OpenAIChatCompletionClient
 from autogen_core.models import SystemMessage, RequestUsage
 
-from ai4peace.core.simulation_runner import load_scenario_class
-from ai4peace.core_v2.new_architecture_draft import GameScenario
-from ai4peace.core.utils import setup_logging
+from ai4peace.new_architecture_draft import GameScenario
+from ai4peace.utils import setup_logging, load_scenario_class
 from autogen_core.models import CreateResult
-from typing import Any, AsyncGenerator, Dict, List, Union
 
 logger = logging.getLogger(__name__)
 logging.getLogger("httpx").setLevel(logging.WARNING)
@@ -26,7 +20,6 @@ AI_RACE_TEST_RESPONSES = {"Amber_Systems": [AMBER_ROUND_1, AMBER_ROUND_2],
 
 
 import asyncio
-from dataclasses import dataclass
 from typing import Any, Dict, List, Optional
 
 
